@@ -1,12 +1,14 @@
 # Verdant — Smart Home Energy Management
 
-A complete, Python-authored Dash application for an examiner-facing smart-home energy demonstration. The interface, Plotly charts, furnished 3D geometry, callbacks, scheduling and energy calculations are authored in Python. Local CSS supplies the visual theme; there is no handwritten application JavaScript or separate frontend build.
+A complete, Python-authored Dash application for an examiner-facing smart-home energy demonstration. The interface, Plotly analytics, VTK WebGL house, callbacks, scheduling and energy calculations are authored in Python. Local CSS supplies the visual theme; there is no handwritten application JavaScript or separate frontend build.
 
 [Source repository](https://github.com/BehnamMohseniGharyehsafa/verdant-home-energy) · [Deploy to Render](https://render.com/deploy?repo=https://github.com/BehnamMohseniGharyehsafa/verdant-home-energy)
 
 **Data and controls are simulated.** The app does not claim to be connected to meters, appliances, electricity markets, a real demand-response program or an AI service. It works without API keys or personal home data.
 
 ![Verdant dashboard with the furnished interactive house](docs/images/overview.jpg)
+
+![Interactive interior with lighting controls, appliance symbols and live room conditions](docs/images/interior.jpg)
 
 Documentation: [examiner walkthrough](EXAMINER_GUIDE.md) · [architecture](docs/ARCHITECTURE.md) · [CSV data dictionary](docs/DATA_DICTIONARY.md) · [verification record](docs/VERIFICATION.md) · [contributing](CONTRIBUTING.md) · [security scope](SECURITY.md).
 
@@ -23,6 +25,12 @@ python -m venv .venv
 ```
 
 Open **http://127.0.0.1:8050/**. Keep the terminal running. This local URL cannot be used by your examiner on another computer. If the port is occupied, set `$env:PORT = '8051'` before starting and use that port in the browser.
+
+**Updating an already running copy:** press **Ctrl+C** in its terminal, run `.\.venv\Scripts\python.exe -m pip install -r requirements.txt`, then run `.\.venv\Scripts\python.exe app.py` again. Reload the browser with **Ctrl+F5**. The renderer requires the pinned Dash/React combination; do not independently upgrade Dash.
+
+On **Overview**, use **Roof on**, **Inside** or **X-ray**. Drag to orbit, use the wheel or right-drag to zoom, or use the **+ / −** buttons. **Reset view**, camera presets and **Large view** help inspect details. On **Devices & lighting**, click a gold bulb to switch that room off/on; click an appliance symbol to apply a live override. Matching symbols and accessible buttons appear alongside the house.
+
+The header clock always shows actual **Irish local time**. **Irish time** follows that time in the simulation; **Play day ×300** makes one model day take about 4 minutes 48 seconds. Watch room temperatures, solar, battery, live power and energy-flow particles change. **Inspect time** enables the quarter-hour slider. All these readings remain simulated.
 
 macOS / Linux:
 
@@ -62,27 +70,28 @@ Render's free web services can spin down after 15 minutes of inactivity, and wak
 
 | View | Features |
 |---|---|
-| Overview | Daily demand/cost/carbon indicators, interactive furnished 3D home, selectable rooms, energy and lighting layers, quarter-hour time explorer, power-flow diagram, demand and solar profile, editable-tariff chart, scenario insights |
-| Devices & lighting | Six daily appliance schedules, EV charging, six room dimmers, Home/Eco/Away scenes, contiguous-cycle tariff scheduler and timeline |
-| Heating & cooling | Thermostat, heating/cooling/off, target/outdoor profiles, electrical demand and model assumptions |
+| Overview | Irish analog/digital clock, live power and battery indicators, complete roof/envelope, furnished interior and X-ray modes, visible rooftop PV/EV/charger/battery, moving energy particles, live room temperatures, rolling power history, daily demand/cost/carbon projections |
+| Devices & lighting | Interactive interior, clickable bulbs and six distinct appliance symbols, immediate On/Off overrides, synchronized room switches/dimmers, live room temperature/power, six daily schedules, Home/Eco/Away scenes and tariff scheduler |
+| Heating & cooling | Thermostat, heating/cooling/off, daily target/outdoor profiles, electrical demand and live thermal-model explanation |
 | Energy analytics | 7/30-day synthetic replays, reference comparisons for cost/demand/carbon, consumption breakdown and full daily ledger |
 | Demand response | Event participation simulator, load shifting, event dimming, thermostat relief, matched grid-import comparison and illustrative reward |
 | System & assumptions | Solar/battery availability, rates, export credit, standing charge, grid carbon factor, formulas, boundaries and examiner walkthrough |
 
-CSV export includes 96 intervals with scenario and reference powers, battery state, prices, interval costs, standing charge, carbon and flex reward. It reconciles with the daily indicators.
+CSV export includes 96 intervals with scenario and reference powers, battery state, prices, interval costs, standing charge, carbon and flex reward. It reconciles with the **daily projection** indicators. Live manual appliance overrides and session counters are separate and are not included in this export.
 
 ## Model specification
 
-- **Time:** a fixed 24-hour model day, 96 × 15-minute intervals; not a clock or DST-aware meter series. Default date is 20 October 2026, configurable with `DEMO_DATE`. Moving the time slider selects an interval. Controls re-run the entire day and are not logged historical commands.
+- **Time:** the actual header clock uses `Europe/Dublin`, including GMT/IST daylight-saving transitions. Live simulation refreshes every 2 seconds. Irish mode follows the local time of day; playback advances at ×300; Inspect time fixes the outdoor/schedule time while physical state continues evolving. Time jumps, model-day wraps and inactivity over 60 seconds reset live temperatures, battery initialization, history and session counters. The separate daily projection remains 96 × 15-minute intervals, with a fixed default date of 20 October 2026 (`DEMO_DATE`); it is not a DST-aware meter series.
 - **Building:** 128 m² including garage; six rooms. Geometry is illustrative, not surveyed. Whole-home HVAC and always-on power are allocated to rooms in proportion to area; scheduled appliances and room lighting are assigned directly. Room allocations sum to total demand.
 - **Lighting:** 296 W total installed power at 100%; power varies linearly with brightness. From 08:00 to 17:00, daylight reduces selected power to 30%. This is an energy assumption, not a lux/illuminance model.
 - **Always-on:** 110 W combined fridge/router/standby load. It cannot be remotely disabled in this demonstration.
-- **HVAC:** quasi-steady heat-loss coefficient 0.18 kW/°C; heating COP 3.5 and cooling COP 3.2; simple passive gains. Outdoor temperature is synthetic autumn weather. No thermal capacitance, measured indoor temperature, occupancy dynamics or room thermostat loop is simulated. Cooling can legitimately be zero on a cool day.
-- **Appliances:** one fixed-profile daily cycle/window each when enabled. Washer 1.00 kWh; dishwasher 0.90 kWh; water heater 2.00 kWh; EV 10.80 kWh; oven 1.45 kWh; office 1.12 kWh. EV charging is disabled initially. Toggling a device enables/disables its daily window; it is not an instantaneous physical switch.
+- **HVAC:** daily projections use a quasi-steady heat-loss coefficient of 0.18 kW/°C, heating COP 3.5 and cooling COP 3.2. The live model adds area-proportional room heat capacity of 0.08 kWh/°C per m², heat losses, simplified appliance/lighting/solar gains, and an average-temperature thermostat correction of 0.7 kW electrical per °C, capped at 3 kW electrical. Initial room temperatures are target minus 0.6°C plus 0.07°C per room index. Outdoor conditions are synthetic autumn weather. There are no measured room sensors, humidity model, occupancy dynamics or equipment-cycling model. Cooling can legitimately be zero on a cool day.
+- **Appliances:** daily schedules contain one fixed-profile cycle/window each when enabled. Washer 1.00 kWh; dishwasher 0.90 kWh; water heater 2.00 kWh; EV 10.80 kWh; oven 1.45 kWh; office 1.12 kWh. EV scheduling is disabled initially. Clicking an in-house appliance symbol applies a separate **live** On/Off override: On holds the device's declared rated power, Off uses zero, and Restore automatic schedules returns to its daily profile. This override is an illustrative electrical load, not a detailed appliance-cycle or EV traction-battery model. Live overrides do not change the schedule-based daily projection.
 - **Scheduling:** exhaustively evaluates allowed contiguous starts for each flexible cycle at the import tariff. Cycles complete within the same day, with earliest-start tie breaking. All-day unattended operation is assumed. Tariff-only optimization can increase whole-home net cost because PV/battery effects are not its objective; the interface explicitly states this limitation.
 - **PV:** 5.2 kWp with deterministic synthetic daylight and cloud variation; no weather API or site-specific yield model. Default-day output is about 18 kWh, an illustrative favorable autumn day, not a generation forecast. Turning solar off also disables it in the matched reference.
 - **Battery:** 10 kWh, 2.5 kW AC charge/discharge limit, 20% reserve, 90% round-trip efficiency. Each conversion uses `sqrt(0.9)` efficiency. Surplus PV charges the battery; deficits discharge it above reserve. Charging from the grid is not modeled.
 - **Important battery boundary:** each independent day starts with 5 kWh already stored, assigned no acquisition cost or carbon. Ending energy can differ. The fixed reference has battery disabled. Daily savings therefore include the benefit of initially stored energy and are not an annual performance claim. The app displays ending charge and explains this boundary. Multi-day replays reset charge each day.
+- **Live battery and counters:** the live battery initializes from the daily projection's state at the selected time, then integrates with the same reserve, AC limits and conversion losses. Live session energy, variable net cost and import carbon accumulate over elapsed model time; standing charge and DR reward are excluded. The RC model and these counters use a simple numerical time step, so they are educational approximations, not validated physical measurements.
 - **Tariff:** illustrative €0.16/kWh 00:00–07:00; €0.42/kWh 17:00–19:00; €0.28/kWh otherwise; export credit €0.12/kWh and standing charge €0.65/day. All are editable. No named supplier, tax treatment, network fee or current Irish tariff is claimed.
 - **Cost:** `sum((import_kW × import_rate − export_kW × export_rate) × 0.25 h) + standing_charge`. Negative values indicate a net credit under the assumptions. Electricity-cost charts exclude flex reward; the separately labelled financial-savings metric includes it.
 - **Carbon:** imported kWh × editable default **0.23 kg CO₂e/kWh**. This is an assumed constant, not a verified current grid factor. Lifecycle impacts, fuel use and exported-electricity offsets are excluded.
@@ -97,26 +106,30 @@ CSV export includes 96 intervals with scenario and reference powers, battery sta
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-Checks include interval conservation, battery losses/limits, room reconciliation, a hand-calculated cost/carbon case, tariff boundaries, cycle-preserving optimal tariff starts, DR settlement, invalid input, CSV totals, all page renderers, HTTP routes and a real Dash callback POST. GitHub Actions also starts the actual Gunicorn production entry point on Linux and checks its HTTP health and layout routes; that platform-specific check is skipped on Windows.
+Checks include daily and live conservation, battery losses/limits, room reconciliation, Irish daylight-saving boundaries, thermal evolution, clock modes, live appliance overrides, repeated 3D lighting clicks through actual Dash HTTP callbacks, geometry/zoom integrity, a hand-calculated cost/carbon case, tariff boundaries, cycle-preserving tariff scheduling, DR settlement and CSV totals. GitHub Actions also starts the actual Gunicorn production entry point on Linux and checks its HTTP health and layout routes; that platform-specific check is skipped on Windows.
 
 ## Architecture and operational notes
 
 ```text
 app.py             Dash app, callbacks, health check and CSV export
 energy.py          Deterministic energy model and reference calculations
-house.py           Furnished Plotly Mesh3d home and room overlays
+runtime.py         Irish clock, session thermal/battery integration and live overrides
+house_scene.py     Detailed Python-generated VTK house, pickable controls and small live patches
 charts.py          Python/Plotly analytics and flows
 ui.py              Python-authored layouts, components and vector icons
 assets/style.css   Responsive dark theme, accessibility and controls
+assets/interactive.css  Live clock, house viewer and direct-control styling
 render.yaml        Render Web Service Blueprint
 Dockerfile         Optional container deployment
 tests/             Accounting and HTTP/callback tests
 ```
 
-Scenario controls live in browser memory and reset on refresh; visitors do not share a mutable global home. Server-side cached results are deterministic and bounded. There is no database, persistent household data, authentication, API key or external API dependency. The production start command uses one Gunicorn worker with four threads to suit a small service; do not use Flask's development server for public deployment. Dash/Plotly ship their own browser runtime as part of the Python framework.
+Scenario controls and live simulation state live in browser memory and reset on refresh; visitors do not share a mutable global home. Server-side cached daily results and architectural meshes are deterministic and bounded. The browser receives small patches for moving flow particles, lighting and battery fill instead of rebuilding the house every tick; the camera persists during updates. There is no database, persistent household data, authentication, API key or external API dependency. The production start command uses one Gunicorn worker with four threads. Dash/Plotly/VTK supply their browser runtimes as Python framework dependencies.
+
+**Renderer compatibility:** `dash-vtk==0.0.9` is used with `dash==2.18.2` and Dash's bundled React **16.14.0**. The newer Dash/React combination was checked and did not render reliably; keep this explicit compatibility pin until a replacement has been browser-tested. Geometry is generated with NumPy and Python; the server does not import native VTK rendering or require a GPU/display server. A browser with WebGL and hardware acceleration is recommended.
 
 The 3D model and charts have no added watermark. Plotly's modebar and logo are explicitly disabled, and visible framework credits are omitted from the interface. The Verdant name is the application's own identity. Third-party license notices remain in their distributed dependencies.
 
 To connect real equipment later, implement authenticated server-side adapters for an actual platform (for example Home Assistant/MQTT), validate device capabilities, store verified meter/tariff data, and replace the simulation with measured series. Those integrations, access control, physical-device safety rules and hardware validation are a separate implementation task. Do not expose a real-home controller publicly using this demonstration's anonymous visitor model.
 
-Official framework reference: [Dash installation](https://dash.plotly.com/installation), [Dash callbacks](https://dash.plotly.com/basic-callbacks), [Plotly Python 3D meshes](https://plotly.com/python/3d-mesh/).
+Official framework reference: [Dash installation](https://dash.plotly.com/installation), [Dash callbacks](https://dash.plotly.com/basic-callbacks), [Dash VTK representations](https://dash.plotly.com/vtk/representations), [Dash VTK interaction and picking](https://dash.plotly.com/vtk/click-hover).

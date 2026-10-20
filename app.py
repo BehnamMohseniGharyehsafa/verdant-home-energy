@@ -2,20 +2,27 @@
 
 Run: python app.py. Production: gunicorn app:server --bind 0.0.0.0:$PORT
 """
-from datetime import date
+from datetime import date, datetime, timezone
+from urllib.parse import quote
+import math
 import csv
 import io
 import json
 import os
 
 import numpy as np
-from dash import Dash, Input, Output, State, ALL, dcc, html, no_update
+from dash import Dash, Input, Output, State, ALL, dcc, html, no_update, ctx
 from dash.exceptions import PreventUpdate
+from dash import _dash_renderer
+
+# dash-vtk's published renderer targets React 16. Pin its supported runtime.
+_dash_renderer._set_react_version("16.14.0")
 
 import charts
 from energy import (DEFAULT, DEVICES, ROOMS, HOURS, DT, default_state, evaluate_state,
                     history, sanitize, time_label, room_power)
-from house import house_figure
+from house_scene import scene_children, scene_patch, CAMERAS
+from runtime import step, irish_now, picked_object, control_state
 from ui import layout, icon, metric, card, pill
 
 DEMO_DATE = date.fromisoformat(os.getenv("DEMO_DATE", "2026-10-20"))
@@ -44,9 +51,61 @@ def navigate(page):
 
 @app.callback(Output({"type": "brightness", "room": ALL}, "value"),
               Output("thermostat", "value"), Output("hvac-mode", "value"),
-              Input("scene", "value"), State({"type": "brightness", "room": ALL}, "id"),
+              Output("device-overrides","data"),Output("control-feedback","children"),
+              Output("home-scene","clickInfo"),Output("devices-scene","clickInfo"),
+              Input("scene", "value"),Input("home-scene","clickInfo"),Input("devices-scene","clickInfo"),
+              Input({"type":"room-switch","room":ALL},"n_clicks"),
+              Input({"type":"live-device","device":ALL},"n_clicks"),Input("reset-overrides","n_clicks"),
+              State({"type": "brightness", "room": ALL}, "id"),
+              State({"type":"brightness","room":ALL},"value"),
+              State("device-overrides","data"),State("live-state","data"),
               prevent_initial_call=True)
+def apply_controls(scene, home_pick, devices_pick, room_clicks, device_clicks, reset_clicks,
+                   light_ids, levels, overrides, live):
+    trigger=ctx.triggered_id
+    overrides=dict(overrides or {})
+    live=live or {}
+    untouched=no_update
+    untouched_levels=[no_update for _ in light_ids]
+    clear_home=clear_devices=no_update
+    if trigger=="scene":
+        scenes={"Home":(65,21),"Eco":(35,19),"Away":(0,16)}
+        brightness,target=scenes.get(scene,scenes["Home"])
+        return [brightness for _ in light_ids],target,"heat",untouched,f"{scene} scene applied.",untouched,untouched
+    if trigger=="reset-overrides":
+        return untouched_levels,untouched,untouched,{},"Automatic appliance schedules restored.",untouched,untouched
+    if isinstance(trigger,dict):
+        picked=("light",trigger["room"]) if trigger.get("type")=="room-switch" else ("device",trigger.get("device"))
+    elif trigger in ("home-scene","devices-scene"):
+        picked=picked_object(home_pick if trigger=="home-scene" else devices_pick)
+        clear_home=clear_devices=None
+    else:
+        raise PreventUpdate
+    if not picked or picked[0] not in ("light","device"):
+        raise PreventUpdate
+    kind,key=picked
+    if kind=="light" and key in ROOMS:
+        values=dict(zip([item["room"] for item in light_ids],levels))
+        remembered=dict(overrides.get("_light_levels",{}))
+        current=float(values.get(key,65) or 0)
+        if current>0:
+            remembered[key]=current
+            values[key]=0
+        else:
+            values[key]=remembered.get(key,65)
+        overrides["_light_levels"]=remembered
+        message=f"{ROOMS[key]['name']} lighting {'off' if values[key]==0 else 'on'} · {values[key]:g}% brightness."
+        return [values[item["room"]] for item in light_ids],untouched,untouched,overrides,message,clear_home,clear_devices
+    if kind=="device" and key in DEVICES:
+        was_on=float(live.get("appliances",{}).get(key,0))>.001
+        overrides[key]="off" if was_on else "on"
+        message=f"{DEVICES[key]['name']}: live manual {overrides[key].upper()}. Daily schedule projection is unchanged."
+        return untouched_levels,untouched,untouched,overrides,message,clear_home,clear_devices
+    raise PreventUpdate
+
+
 def apply_scene(scene, light_ids):
+    """Pure scene helper retained for callers and independent tests."""
     scenes = {"Home": (65, 21), "Eco": (35, 19), "Away": (0, 16)}
     brightness, target = scenes.get(scene, scenes["Home"])
     return [brightness for _ in light_ids], target, "heat"
@@ -72,12 +131,15 @@ def update_state(brightness, devices, temperature, hvac, solar, battery, optimiz
     return sanitize(state)
 
 
-@app.callback(Output("selected-room", "value"), Input("house-view", "clickData"), prevent_initial_call=True)
-def select_room(click):
-    if not click:
+@app.callback(Output("selected-room", "value"), Input("home-scene", "clickInfo"),
+              Input("devices-scene","clickInfo"), prevent_initial_call=True)
+def select_room(home_click, devices_click=None):
+    click=devices_click if ctx.triggered_id=="devices-scene" else home_click
+    picked=picked_object(click)
+    if not picked:
         raise PreventUpdate
-    room = click.get("points", [{}])[0].get("customdata")
-    return room if isinstance(room, str) and room in ROOMS else no_update
+    kind,key=picked
+    return key if kind in ("light","room") else DEVICES[key]["room"]
 
 
 def stat(value, label, unit=""):
@@ -89,7 +151,7 @@ def insight(symbol, title, text, tag):
                  html.H3(title), html.P(text)], "insight-card")
 
 
-def build_overview(state, index, room, layer):
+def build_overview(state, index):
     day, reference, event = evaluate_state(state)
     a, b = day.totals, reference.totals
     demand_change = b["load"] - a["load"]
@@ -102,21 +164,6 @@ def build_overview(state, index, room, layer):
         metric("Solar self-consumption", f"{a['solar_self_consumption']:.0f}", "%", f"{a['solar']:.1f} kWh solar generated", "sun", day.pv, "cyan"),
         metric("Operational carbon avoided", f"{carbon_change:.2f}", "kg CO₂e", "Against declared daily reference", "leaf", reference.grid_in - day.grid_in, "blue"),
     ]
-    soc = day.soc[index] / 10 * 100
-    flow_stats = [stat(f"{day.pv[index]:.2f}", "Solar", "kW"),
-                  stat(f"{day.grid_in[index]:.2f}", "Import", "kW"),
-                  stat(f"{soc:.0f}%" if state["battery"] else "Off", "Battery charge")]
-    info = ROOMS[room]
-    power = room_power(day, room, index)
-    active_devices = [device["name"] for key, device in DEVICES.items()
-                      if device["room"] == room and day.schedules[key]["power"][index] > 0]
-    detail = [html.Div([html.Span("SELECTED ROOM", className="eyebrow"), icon("home", 17)], className="inline spread"),
-        html.H3(info["name"]),
-        html.Div([html.Strong(f"{power * 1000:.0f}"), html.Span("W allocated demand")], className="room-power"),
-        html.Div([pill(f"{state['lights'][room]:.0f}% lighting", "amber"),
-                  pill(f"{state['temperature']:.1f}°C target" if state["hvac"] != "off" else "HVAC off", "muted")], className="room-pills"),
-        html.P("Operating: " + ", ".join(active_devices) if active_devices else "No scheduled appliance operating in this interval.", className="subtle"),
-        html.Small(f"{info['area']:.1f} m² · HVAC and always-on power allocated by floor area", className="footnote")]
     tariff_name = "Off-peak" if index < 28 else ("Peak" if 68 <= index < 76 else "Day rate")
     current_price = [html.Strong(f"{day.prices[index] * 100:.0f}"), html.Span("c / kWh"), pill(tariff_name.upper(), "amber")]
     optimized, _, _ = evaluate_state(dict(state, optimize=True))
@@ -130,27 +177,23 @@ def build_overview(state, index, room, layer):
     recommendations = [first,
         insight("battery", "Follow your stored energy", f"Battery ends the model day at {day.soc[-1]:.2f} kWh" + (f", from {day.soc[0]:.2f} kWh initially stored. Daily cost benefits include that initial energy." if state["battery"] else ". Enable storage in System to explore self-consumption."), "STORAGE INSIGHT"),
         insight("flex", "Make room for flexibility", f"{'Participation enabled' if state['dr'] else 'Try the demand-response simulator'}: shift flexible loads away from 17:00–19:00 and inspect the matched import reduction.", "EVENING PEAK")]
-    return (metrics, house_figure(day, index, room, layer), charts.flow(day, index), flow_stats,
-            detail, charts.profile(day, index), charts.price(day, index), current_price,
-            recommendations, f"{day.outdoor[index]:.1f}°C", time_label(index))
+    return metrics, charts.profile(day,index), charts.price(day,index), current_price,recommendations
 
 
 @app.callback(
-    Output("overview-metrics", "children"), Output("house-view", "figure"),
-    Output("flow-chart", "figure"), Output("flow-stats", "children"), Output("room-detail", "children"),
+    Output("overview-metrics", "children"),
     Output("daily-chart", "figure"), Output("price-chart", "figure"), Output("price-current", "children"),
-    Output("recommendations", "children"), Output("weather-label", "children"), Output("time-value", "children"),
-    Input("scenario", "data"), Input("simulation-time", "value"), Input("selected-room", "value"), Input("house-layer", "value"))
-def render_overview(raw, index, room, layer):
+    Output("recommendations", "children"),
+    Input("scenario", "data"), Input("effective-index", "data"))
+def render_overview(raw, index):
     state = sanitize(raw)
     index = max(0, min(95, int(index or 0)))
-    room = room if room in ROOMS else "living"
-    return build_overview(state, index, room, layer)
+    return build_overview(state,index)
 
 
 @app.callback(Output({"type": "device-status", "device": ALL}, "children"),
     Output({"type": "brightness-label", "room": ALL}, "children"), Output("schedule-chart", "figure"),
-    Input("scenario", "data"), Input("simulation-time", "value"),
+    Input("scenario", "data"), Input("effective-index", "data"),
     State({"type": "device-status", "device": ALL}, "id"),
     State({"type": "brightness-label", "room": ALL}, "id"))
 def render_devices(raw, index, device_ids, room_ids):
@@ -172,7 +215,7 @@ def render_devices(raw, index, device_ids, room_ids):
 
 @app.callback(Output("thermostat-value", "children"), Output("climate-chart", "figure"),
               Output("climate-load", "figure"), Output("climate-summary", "children"),
-              Input("scenario", "data"), Input("simulation-time", "value"))
+              Input("scenario", "data"), Input("effective-index", "data"))
 def render_climate(raw, index):
     state = sanitize(raw)
     day, _, _ = evaluate_state(state)
@@ -250,6 +293,165 @@ def download(n_clicks, raw):
     if not n_clicks:
         raise PreventUpdate
     return dcc.send_string(export_csv(raw), f"verdant-simulated-{DEMO_DATE.isoformat()}.csv")
+
+
+@app.callback(Output("irish-clock","children"),Output("irish-date","children"),Output("analog-clock","src"),
+              Input("irish-clock-tick","n_intervals"))
+def render_irish_clock(_):
+    local=irish_now()
+    hands=[]
+    for angle,length,width,color in [((local.hour%12+local.minute/60)*30,12,2.5,"#dfead9"),
+                                     ((local.minute+local.second/60)*6,17,1.7,"#c4f286"),
+                                     (local.second*6,19,.8,"#62d4d6")]:
+        theta=math.radians(angle-90)
+        hands.append(f'<line x1="25" y1="25" x2="{25+length*math.cos(theta):.2f}" y2="{25+length*math.sin(theta):.2f}" stroke="{color}" stroke-width="{width}" stroke-linecap="round"/>')
+    svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50"><circle cx="25" cy="25" r="23" fill="#14252b" stroke="#476258"/>'
+    svg+=''.join(f'<circle cx="{25+20*math.cos(i*math.pi/6):.2f}" cy="{25+20*math.sin(i*math.pi/6):.2f}" r=".8" fill="#809990"/>' for i in range(12))
+    svg+=''.join(hands)+'<circle cx="25" cy="25" r="2" fill="#c4f286"/></svg>'
+    return local.strftime("%H:%M:%S")+" "+local.tzname(),local.strftime("%a %d %b · Ireland"),"data:image/svg+xml,"+quote(svg)
+
+
+@app.callback(Output("live-state","data"),Output("effective-index","data"),
+              Input("simulation-tick","n_intervals"),Input("scenario","data"),
+              Input("clock-mode","value"),Input("simulation-time","value"),Input("device-overrides","data"),
+              State("live-state","data"),State("effective-index","data"))
+def advance_simulation(_,raw,mode,manual_slot,overrides,previous,current_index):
+    snapshot=step(raw,previous,mode,manual_slot,overrides)
+    return snapshot,snapshot["index"] if snapshot["index"]!=current_index else no_update
+
+
+@app.callback(Output("home-scene","children"),Output("home-scene","triggerRender"),
+              Output("home-scene","triggerResetCamera"),
+              Output("devices-scene","children"),Output("devices-scene","triggerRender"),
+              Output("devices-scene","triggerResetCamera"),
+              Output("scene-memory","data"),
+              Input("live-state","data"),Input("home-envelope","value"),Input("devices-envelope","value"),
+              Input("navigation","value"),Input("home-zoom","data"),Input("devices-zoom","data"),
+              State("scene-memory","data"))
+def render_scenes(snapshot,home_mode,device_mode,page,home_zoom,device_zoom,memory):
+    snapshot=snapshot or {}
+    memory=dict(memory or {})
+    signature=json.dumps([snapshot.get("lighting_levels",{}),
+        {key:float(value)>.001 for key,value in snapshot.get("appliances",{}).items()}],sort_keys=True)
+    values=[]
+    for prefix,mode,visible,zoom_data in [("home",home_mode,page=="overview",home_zoom),("devices",device_mode,page=="devices",device_zoom)]:
+        mode=mode if mode in ("exterior","interior","xray") else "exterior"
+        zoom_data=zoom_data or {}
+        zoom=max(.55,min(3.5,float(zoom_data.get("factor",1))))
+        view_signature=signature+str(zoom)
+        if not visible:
+            values.extend([no_update,no_update,no_update])
+        else:
+            full=ctx.triggered_id in (None,"navigation",prefix+"-envelope") or memory.get(prefix,{}).get("mode")!=mode
+            changed=memory.get(prefix,{}).get("signature")!=view_signature
+            reset=datetime.now(timezone.utc).timestamp() if ctx.triggered_id==prefix+"-zoom" and zoom_data.get("action")=="reset" else no_update
+            values.extend([scene_children(prefix,mode,snapshot,zoom) if full else scene_patch(prefix,mode,snapshot,changed,zoom),snapshot.get("stamp",0),reset])
+            memory[prefix]={"mode":mode,"signature":view_signature}
+    return values+[memory]
+
+
+def register_viewer_callbacks(prefix):
+    @app.callback(Output(prefix+"-scene","cameraPosition"),Output(prefix+"-canvas-wrap","style"),
+                  Input(prefix+"-camera","value"),Input(prefix+"-reset-camera","n_clicks"),
+                  Input(prefix+"-expand","value"),prevent_initial_call=True)
+    def camera(vantage,resets,expand):
+        position=CAMERAS.get(vantage,CAMERAS["orbit"])
+        position=[value+(resets or 0)*.000001 for value in position]
+        return position,{"height":"780px" if "on" in (expand or []) else "530px"}
+
+    @app.callback(Output(prefix+"-zoom","data"),Input(prefix+"-zoom-in","n_clicks"),
+                  Input(prefix+"-zoom-out","n_clicks"),Input(prefix+"-reset-camera","n_clicks"),
+                  Input(prefix+"-camera","value"),State(prefix+"-zoom","data"),prevent_initial_call=True)
+    def zoom_view(zoom_in,zoom_out,resets,vantage,current):
+        current=current or {}
+        factor=float(current.get("factor",1))
+        trigger=ctx.triggered_id
+        action="zoom"
+        if trigger==prefix+"-zoom-in":
+            factor=min(3.5,factor*1.2)
+        elif trigger==prefix+"-zoom-out":
+            factor=max(.55,factor/1.2)
+        else:
+            factor,action=1,"reset"
+        return {"factor":factor,"action":action,"sequence":int(current.get("sequence",0))+1}
+
+    @app.callback(Output(prefix+"-hover-detail","children"),Input(prefix+"-scene","hoverInfo"),State("live-state","data"))
+    def hover(info,snapshot):
+        picked=picked_object(info)
+        snapshot=snapshot or {}
+        if not picked:
+            return "Gold bulbs: lighting · cyan equipment: operating · grey: off / scheduled"
+        kind,key=picked
+        if kind=="light":
+            return f"{ROOMS[key]['name']} · {snapshot.get('lighting_levels',{}).get(key,0):g}% lighting · click to switch On / Off"
+        if kind=="device":
+            power=snapshot.get("appliances",{}).get(key,0)*1000
+            return f"{DEVICES[key]['name']} · {power:.0f} W · click for live On / Off override"
+        return ROOMS[key]["name"]
+
+
+for _prefix in ("home","devices"):
+    register_viewer_callbacks(_prefix)
+
+
+@app.callback(Output("live-metrics","children"),Output("flow-chart","figure"),Output("flow-stats","children"),
+    Output("room-detail","children"),Output("live-chart","figure"),Output("live-assets","children"),
+    Output("live-session","children"),Output("weather-label","children"),Output("model-time","children"),
+    Output("model-mode-label","children"),Output("time-value","children"),
+    Output({"type":"live-room","room":ALL},"children"),
+    Output({"type":"light-switch-label","room":ALL},"children"),
+    Output({"type":"live-device-label","device":ALL},"children"),
+    Output("devices-model-time","children"),
+    Output({"type":"room-switch","room":ALL},"className"),
+    Output({"type":"room-switch","room":ALL},"aria-pressed"),
+    Input("live-state","data"),Input("selected-room","value"),
+    State({"type":"live-room","room":ALL},"id"),State({"type":"light-switch-label","room":ALL},"id"),
+    State({"type":"live-device-label","device":ALL},"id"))
+def render_live(snapshot,room,room_ids,light_ids,device_ids):
+    if not snapshot:
+        raise PreventUpdate
+    room=room if room in ROOMS else "living"
+    history=snapshot["history"]
+    metrics=[
+        metric("Home demand now",f"{snapshot['home']:.3f}","kW","Simulated · refreshes every 2 s","bolt",[r["home"] for r in history]),
+        metric("Rooftop solar now",f"{snapshot['pv']:.3f}","kW","13 modules · 5.2 kWp","sun",[r["solar"] for r in history],"cyan"),
+        metric("Grid import" if snapshot["import"]>.001 else ("Grid export" if snapshot["export"]>.001 else "Grid balanced"),f"{max(snapshot['import'],snapshot['export']):.3f}","kW",
+               "Balanced with home, PV and battery","flex",[r["grid"] for r in history],"blue"),
+        metric("Residential battery",f"{snapshot['soc']*10:.1f}","%","10 kWh capacity · 20% reserve","battery",[snapshot["soc"]],"amber")]
+    status="Charging" if snapshot["charge"]>.001 else ("Discharging" if snapshot["discharge"]>.001 else "Idle")
+    if not snapshot["battery_enabled"]:
+        status="Disabled"
+    stats=[stat(f"{snapshot['pv']:.2f}","Solar","kW"),stat(f"{snapshot['import']:.2f}","Import","kW"),stat(status,"Battery")]
+    detail=[html.Span("SIMULATED INDOOR CONDITIONS",className="eyebrow"),html.H3(ROOMS[room]["name"]),
+        html.Div([html.Strong(f"{snapshot['temperatures'][room]:.2f}°"),html.Span("C indoor · RC model")],className="room-power"),
+        html.Div([pill(f"{snapshot['room_power'][room]*1000:.0f} W demand","green"),
+                  pill(f"{snapshot['lighting_levels'][room]:.0f}% lights","amber")],className="room-pills"),
+        html.P(f"Outdoor {snapshot['outdoor']:.1f}°C · thermostat target {snapshot['target']:.1f}°C",className="subtle"),
+        html.P("Inside / X-ray exposes the room controls. Select Play day to see thermal changes over an accelerated day.",className="footnote")]
+    asset_rows=[
+        ("sun","Rooftop PV",f"{snapshot['pv']:.3f} kW", "13 × 400 W modules · front roof"),
+        ("car","EV & charger",f"{snapshot['appliances']['ev']:.2f} kW", "Driveway car · charger and cable visible"),
+        ("battery","Home battery",f"{snapshot['soc']:.3f} kWh", f"{status} · {max(snapshot['charge'],snapshot['discharge']):.3f} kW"),
+        ("climate","Heat pump",f"{snapshot['hvac']:.3f} kW", "Outdoor unit · modelled electrical input")]
+    assets=[html.Div([icon(symbol,24),html.Div([html.Strong(label),html.Small(description)]),html.Strong(value)],className="asset-live-row") for symbol,label,value,description in asset_rows]
+    session=snapshot["session"]
+    session_label=f"This simulation session: {session['energy']:.4f} kWh · variable net cost €{session['cost']:.4f} · {session['carbon']:.4f} kg CO₂e. Standing charge excluded; counters reset when the model time jumps."
+    seconds=int(snapshot["seconds"])
+    model_time=f"{seconds//3600:02d}:{seconds%3600//60:02d}:{seconds%60:02d}"
+    mode_label={"irish":"Europe/Dublin · clock-synchronized simulation","play":"Accelerated model time · ×300","manual":"Fixed time conditions · thermal / battery model evolving"}[snapshot["mode"]]
+    rooms=[f"{snapshot['temperatures'][item['room']]:.2f}°C · {snapshot['room_power'][item['room']]*1000:.0f} W" for item in room_ids]
+    lights=["On" if snapshot["lighting_levels"][item["room"]]>0 else "Off" for item in light_ids]
+    devices=[f"{snapshot['appliances'][item['device']]*1000:.0f} W · {snapshot['overrides'][item['device']].upper()}" for item in device_ids]
+    classes=["house-switch" if snapshot["lighting_levels"][item["room"]]>0 else "house-switch off" for item in light_ids]
+    pressed=["true" if snapshot["lighting_levels"][item["room"]]>0 else "false" for item in light_ids]
+    return (metrics,charts.live_flow(snapshot),stats,detail,charts.live_profile(snapshot),assets,session_label,
+        f"{snapshot['outdoor']:.1f}°C",model_time,mode_label,model_time[:5],rooms,lights,devices,
+        model_time+" · "+mode_label,classes,pressed)
+
+
+@app.callback(Output("clock-mode","value"),Input("devices-play","n_clicks"),Input("devices-irish","n_clicks"),prevent_initial_call=True)
+def set_devices_clock(play_clicks,irish_clicks):
+    return "play" if ctx.triggered_id=="devices-play" else "irish"
 
 
 if __name__ == "__main__":

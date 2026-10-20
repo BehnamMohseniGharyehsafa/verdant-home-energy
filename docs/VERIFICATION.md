@@ -4,27 +4,33 @@ Verified on **20 October 2026**. These checks validate implementation and intern
 
 ## Automated checks
 
-- Isolated local environment: Python 3.13.7; pinned top-level Dash, Plotly and NumPy dependencies. `pip check`: **no broken requirements**.
-- Windows: **17 passed, 1 skipped**. The skipped check starts Gunicorn and is specific to Linux.
-- Ubuntu/GitHub Actions: **successful**, including the actual Gunicorn production entry point and its `/healthz` and Dash layout routes. [Verified code run](https://github.com/BehnamMohseniGharyehsafa/verdant-home-energy/actions/runs/39413674006) for commit `d22528b4688e618a3ac4cacba2181a2d3329195b`.
-- Interval conservation, battery losses/capacity/power limits, tariff boundaries, room allocation reconciliation, a hand-calculated bill/carbon case, energy-preserving tariff scheduling, matched DR reward, controls, invalid parameters, CSV reconciliation, callback registration and HTTP callback execution all pass.
+- Isolated local environment: Python 3.13.7, Dash 2.18.2, bundled React 16.14.0, dash-vtk 0.0.9, Plotly 6.3.0, NumPy 2.3.3 and tzdata 2026.5. `pip check`: **no broken requirements**.
+- Windows: **39 passed, 1 skipped**. The skipped check starts Gunicorn and is specific to Linux.
+- Updated Ubuntu/GitHub Actions status is available in [Python checks](https://github.com/BehnamMohseniGharyehsafa/verdant-home-energy/actions). The workflow installs the same requirements and starts the actual Gunicorn production entry point, including `/healthz` and Dash layout routes.
+- Daily and live power conservation, battery losses/capacity/power limits, room allocation, tariff boundaries, bill/carbon arithmetic, cycle-preserving scheduling, matched DR reward, invalid parameters and CSV reconciliation all pass.
+- New checks cover Irish GMT/IST daylight-saving boundaries, clock/playback/manual modes, evolving room thermal state, live EV On/Off power, live overrides excluded from daily projections, inactive-session resets, valid mesh normals/colors/indices, distinct control IDs, small scene patches and zoom transforms.
+- Actual Dash HTTP POSTs verify a 3D bulb switches off and restores its remembered dim level on the next click, both consumed pick states clear, EV picks apply live overrides, and architectural surfaces cannot trigger devices.
 
 ## Browser checks
 
-- Furnished 3D home and room dropdown render; house camera can be explored.
+- Detailed complete envelope and slate roof render with 13 rooftop PV modules, visible EV/charger/cable, residential battery and heat pump. Furnished interior and transparent X-ray modes render correctly.
+- Explicit Zoom in/out and Reset view work, and zoom remains in place through live ticks. Native VTK orbit/pan/dolly controls are available.
+- A **direct click on the 3D living-room bulb** switches it off, updates its dimmer and removes its light pool; clicking the same location again restores 65%. A **direct 3D EV-symbol click** switches charging off. Adjacent room/equipment buttons also update the same state.
+- The actual Irish clock advances independently of model playback. Accelerated playback changes live demand, solar, grid flow, battery charge and indoor temperature; returning to Irish time restores local-time conditions.
 - Home/Eco scenes update room dimmers and thermostat targets.
 - Enabling the EV schedule changes modeled demand; tariff scheduling updates flexible operating windows to off-peak starts.
 - Thermostat keyboard control updates the target.
 - DR participation updates the event comparison and illustrative reward; a scenario with already-shifted loads can correctly yield no additional event reduction.
 - 30-day analytics produces 30 daily ledger rows.
 - CSV downloads successfully and its totals reconcile in automated tests.
-- Desktop and 390-pixel phone layouts inspected; no horizontal page overflow after responsive charts resize. Collapsed navigation retains accessible labels.
+- Desktop and phone layouts inspected; no horizontal page overflow after responsive charts resize. Collapsed navigation retains accessible labels.
 - No browser console errors were observed in the tested interactions.
 - Framework credits omitted and Plotly modebar/logo disabled. Simulation disclosures intentionally remain visible.
 
 ## Visual evidence
 
 - [Desktop overview](images/overview.jpg)
+- [Interactive furnished interior](images/interior.jpg)
 - [Demand-response simulator](images/demand-response.jpg)
 - [Energy analytics](images/analytics.jpg)
 - [Phone overview](images/mobile.jpg)

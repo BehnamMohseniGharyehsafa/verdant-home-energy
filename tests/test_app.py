@@ -22,16 +22,17 @@ def test_http_routes_and_callback_registration():
                 walk(value)
     walk(layout)
     assert len(ids) == len(set(ids)), "Duplicate component IDs"
-    assert len(app.callback_map) == 10
+    assert any("live-state.data" in key for key in app.callback_map)
+    assert any("home-scene.children" in key for key in app.callback_map)
 
 
 def test_all_views_render_with_changed_scenario():
     state = json.loads(json.dumps(DEFAULT))
     state.update(dr=True, optimize=True, temperature=19, solar=False)
     state["devices"]["ev"] = True
-    result = build_overview(state, 72, "garage", "power")
-    assert len(result) == 11
-    assert len(result[1].data) > 100
+    result = build_overview(state, 72)
+    assert len(result) == 5
+    assert len(result[1].data) == 3
     device_ids = [{"type": "device-status", "device": d} for d in DEVICES]
     room_ids = [{"type": "brightness-label", "room": r} for r in ROOMS]
     assert len(render_devices(state, 72, device_ids, room_ids)[0]) == len(DEVICES)
@@ -49,7 +50,7 @@ def test_real_dash_callback_http():
     response = client.post("/_dash-update-component", json={
         "output": callback, "outputs": outputs,
         "inputs": [{"id": "scenario", "property": "data", "value": DEFAULT},
-                   {"id": "simulation-time", "property": "value", "value": 57}],
+                   {"id": "effective-index", "property": "data", "value": 57}],
         "state": [], "changedPropIds": ["scenario.data"]})
     assert response.status_code == 200
     assert response.get_json()["response"]["thermostat-value"]["children"] == "21"

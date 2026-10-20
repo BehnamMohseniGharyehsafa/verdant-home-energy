@@ -1,6 +1,6 @@
 # CSV data dictionary
 
-The **Export CSV** button downloads 96 rows for the selected scenario's complete model day. The time explorer does not restrict the export to a single interval. Numbers are rounded to eight decimal places at serialization; small differences from summing displayed two-decimal values are expected.
+The **Export CSV** button downloads 96 rows for the selected scenario's complete **daily projection**. The time explorer does not restrict the export to a single interval. Live manual appliance overrides, evolving room temperatures and live session counters are separate and are not exported. Numbers are rounded to eight decimal places at serialization; small differences from summing displayed two-decimal values are expected.
 
 | Column | Unit / meaning |
 |---|---|

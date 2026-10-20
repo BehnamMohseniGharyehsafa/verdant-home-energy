@@ -153,3 +153,26 @@ def schedule(day):
     fig.update_xaxes(showgrid=True, gridcolor=GRID)
     fig.update_yaxes(showgrid=False, autorange="reversed")
     return fig
+
+
+def live_profile(snapshot):
+    history = snapshot.get("history", [])
+    fig = go.Figure()
+    for key, label, color in [("home","Home demand",GREEN),("solar","Solar",CYAN),("grid","Grid import",BLUE)]:
+        fig.add_trace(go.Scatter(x=list(range(len(history))), y=[r[key] for r in history],
+            mode="lines",name=label,line=dict(color=color,width=2.1),
+            customdata=[r["time"] for r in history], hovertemplate="%{customdata}<br>%{y:.3f} kW<extra></extra>"))
+    style(fig,245)
+    step=max(1,len(history)//5)
+    ticks=list(range(0,len(history),step))
+    fig.update_layout(uirevision="live-energy",margin=dict(l=12,r=12,t=35,b=25),
+        xaxis=dict(tickvals=ticks,ticktext=[history[i]["time"] for i in ticks],showgrid=False),
+        yaxis=dict(title="kW",gridcolor=GRID,rangemode="tozero"))
+    return fig
+
+
+def live_flow(snapshot):
+    from types import SimpleNamespace
+    return flow(SimpleNamespace(pv=[snapshot.get("pv",0)],load=[snapshot.get("home",0)],
+        charge=[snapshot.get("charge",0)],discharge=[snapshot.get("discharge",0)],
+        grid_in=[snapshot.get("import",0)],grid_out=[snapshot.get("export",0)]),0)

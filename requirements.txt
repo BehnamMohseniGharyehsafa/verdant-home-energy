@@ -1,4 +1,6 @@
-dash==4.3.0
+dash==2.18.2
 plotly==6.3.0
 numpy==2.3.3
 gunicorn==23.0.0
+dash-vtk==0.0.9
+tzdata==2026.5
