@@ -52,6 +52,7 @@ DEFAULT = {
     "temperature": 21.0, "hvac": "heat", "solar": True, "battery": True,
     "optimize": False, "dr": False, "offpeak": 0.16, "day": 0.28,
     "peak": 0.42, "export_rate": 0.12, "carbon": 0.23, "standing": 0.65,
+    "dr_dim": 50.0, "dr_relief": 1.0, "dr_shift": True, "dr_reward": .35,
 }
 
 
@@ -79,14 +80,15 @@ def sanitize(raw):
                     pass
     for key, lower, upper in (("temperature", 16, 26), ("offpeak", 0, 2), ("day", 0, 2),
                                ("peak", 0, 2), ("export_rate", 0, 1), ("carbon", 0, 1),
-                               ("standing", 0, 5)):
+                               ("standing", 0, 5), ("dr_dim", 0, 80),
+                               ("dr_relief", 0, 2), ("dr_reward", 0, 1)):
         try:
             val = float(raw.get(key, state[key]))
             if math.isfinite(val):
                 state[key] = min(upper, max(lower, val))
         except (TypeError, ValueError):
             pass
-    for key in ("solar", "battery", "optimize", "dr"):
+    for key in ("solar", "battery", "optimize", "dr", "dr_shift"):
         state[key] = bool(raw.get(key, state[key]))
     if raw.get("hvac") in ("heat", "cool", "off"):
         state["hvac"] = raw["hvac"]
@@ -168,12 +170,12 @@ def simulate(raw, day_offset=0):
     room_lights = {}
     for room, info in ROOMS.items():
         light = info["lights_w"] / 1000 * state["lights"][room] / 100 * daylight_dimming
-        room_lights[room] = light * np.where(event & state["dr"], 0.5, 1)
+        room_lights[room] = light * np.where(event & state["dr"], 1 - state["dr_dim"] / 100, 1)
     lighting = np.sum(list(room_lights.values()), axis=0)
     # Quasi-steady heat balance; no claim to simulate measured indoor temperature.
     setpoint = np.full(96, state["temperature"], dtype=float)
     if state["dr"]:
-        setpoint[event] += -1 if state["hvac"] == "heat" else 1
+        setpoint[event] += (-1 if state["hvac"] == "heat" else 1) * state["dr_relief"]
     passive_gain = 1.5 + 0.6 * sun
     if state["hvac"] == "heat":
         hvac = np.maximum(0, setpoint - outdoor - passive_gain) * 0.18 / 3.5
@@ -187,8 +189,9 @@ def simulate(raw, day_offset=0):
     for key, device in DEVICES.items():
         profile = np.array(device["profile"])
         start = int(device["start"] * 4)
-        if device["flex"] and (state["optimize"] or state["dr"]):
-            start = best_start(profile, prices, avoid_event=state["dr"])
+        shift_event = state["dr"] and state["dr_shift"]
+        if device["flex"] and (state["optimize"] or shift_event):
+            start = best_start(profile, prices, avoid_event=shift_event)
         power = np.zeros(96)
         if state["devices"][key]:
             power[start:start + len(profile)] = profile
@@ -235,7 +238,7 @@ def evaluate(serialized, day_offset=0):
     counterfactual = simulate(no_event, day_offset)
     event = (HOURS >= 17) & (HOURS < 19)
     reduction = max(0, float((counterfactual.grid_in[event] - scenario.grid_in[event]).sum() * DT))
-    reward = reduction * 0.35 if state["dr"] else 0.0
+    reward = reduction * state["dr_reward"] if state["dr"] else 0.0
     return scenario, reference, {"reduction": reduction if state["dr"] else 0.0,
                                  "reward": reward, "counterfactual": counterfactual}
 

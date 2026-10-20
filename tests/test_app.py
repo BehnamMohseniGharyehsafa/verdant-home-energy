@@ -37,7 +37,7 @@ def test_all_views_render_with_changed_scenario():
     room_ids = [{"type": "brightness-label", "room": r} for r in ROOMS]
     assert len(render_devices(state, 72, device_ids, room_ids)[0]) == len(DEVICES)
     assert len(render_climate(state, 72)) == 4
-    assert len(render_flex(state)) == 2
+    assert len(render_flex(state)) == 5
     assert len(render_analytics(state, 30)) == 6
     assert navigate("climate")[2] == "page"
 

@@ -27,6 +27,11 @@ The **Export CSV** button downloads 96 rows for the selected scenario's complete
 | `flex_reward_eur` | Whole-day illustrative event reward allocated once to the first row; zero otherwise |
 | `grid_carbon_kg_per_kwh` | Assumed constant grid-import carbon factor, kg CO₂e/kWh |
 | `mode` | Always `SIMULATED` |
+| `dr_enabled` | `True`/`False`: participation setting for the projection |
+| `dr_lighting_reduction_percent` | Configured event lighting reduction, 0–80%; ignored when participation is off |
+| `dr_thermostat_relief_c` | Configured target relaxation, 0–2°C; ignored when participation is off |
+| `dr_shift_cycles` | `True`/`False`: whether opted-in flexible cycles avoid the event |
+| `dr_reward_eur_per_kwh` | Configured illustrative reward rate, 0–1 €/kWh; default 0.35 |
 
 The standing charge and reward appear in the first row as a bookkeeping convention. **They do not represent a charge or an event occurring at midnight.** The flex event is 17:00–19:00.
 
@@ -35,7 +40,7 @@ The standing charge and reward appear in the first row as a bookkeeping conventi
 ```python
 import csv
 
-with open("verdant-simulated-2026-10-20.csv", newline="", encoding="utf-8") as file:
+with open("smart-simulated-2026-10-20.csv", newline="", encoding="utf-8") as file:
     rows = list(csv.DictReader(file))
 
 energy_kwh = sum(float(r["home_kw"]) * float(r["interval_hours"]) for r in rows)

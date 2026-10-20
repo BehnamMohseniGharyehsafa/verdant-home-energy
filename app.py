@@ -1,4 +1,4 @@
-"""Verdant: a Python-authored Smart Home Energy Management demonstrator.
+"""Smart: a Python-authored Smart Home Energy Management demonstrator.
 
 Run: python app.py. Production: gunicorn app:server --bind 0.0.0.0:$PORT
 """
@@ -23,6 +23,7 @@ from energy import (DEFAULT, DEVICES, ROOMS, HOURS, DT, default_state, evaluate_
                     history, sanitize, time_label, room_power)
 from house_scene import scene_children, scene_patch, CAMERAS
 from runtime import step, irish_now, picked_object, control_state
+from flexibility import report as flex_report, network_snapshot
 from ui import layout, icon, metric, card, pill
 
 DEMO_DATE = date.fromisoformat(os.getenv("DEMO_DATE", "2026-10-20"))
@@ -30,7 +31,7 @@ PAGES = ["overview", "devices", "climate", "analytics", "flexibility", "settings
 PAGE_TITLES = ["Overview", "Devices & lighting", "Heating & cooling", "Energy analytics",
                "Demand response", "System & assumptions"]
 
-app = Dash(__name__, title="Verdant · Home Energy", update_title=None,
+app = Dash(__name__, title="Smart · Home Energy", update_title=None,
            meta_tags=[{"name": "viewport", "content": "width=device-width, initial-scale=1"},
                       {"name": "description", "content": "An interactive Python smart-home energy management demonstration with a 3D home, device controls, solar, storage and transparent analytics."}])
 server = app.server
@@ -39,7 +40,7 @@ app.layout = lambda: layout(DEMO_DATE)
 
 @server.get("/healthz")
 def health():
-    return {"status": "ok", "mode": "simulation", "application": "verdant"}, 200
+    return {"status": "ok", "mode": "simulation", "application": "smart"}, 200
 
 
 @app.callback([Output("page-" + page, "className") for page in PAGES] + [Output("page-title", "children")],
@@ -118,16 +119,18 @@ def apply_scene(scene, light_ids):
     Input("solar-toggle", "value"), Input("battery-toggle", "value"),
     Input("optimizer-toggle", "value"), Input("dr-toggle", "value"),
     *[Input("setting-" + key, "value") for key in ("offpeak", "day", "peak", "export_rate", "standing", "carbon")],
+    Input("dr-dim","value"),Input("dr-relief","value"),Input("dr-shift","value"),Input("dr-reward","value"),
     State({"type": "brightness", "room": ALL}, "id"),
     State({"type": "device-toggle", "device": ALL}, "id"))
 def update_state(brightness, devices, temperature, hvac, solar, battery, optimize, dr,
-                 offpeak, day_rate, peak, export_rate, standing, carbon, light_ids, device_ids):
+                 offpeak, day_rate, peak, export_rate, standing, carbon, dr_dim,dr_relief,dr_shift,dr_reward,light_ids, device_ids):
     state = default_state()
     state["lights"] = {key["room"]: value for key, value in zip(light_ids, brightness)}
     state["devices"] = {key["device"]: "on" in (value or []) for key, value in zip(device_ids, devices)}
     state.update(temperature=temperature, hvac=hvac, solar="on" in (solar or []),
                  battery="on" in (battery or []), optimize="on" in (optimize or []), dr="on" in (dr or []),
-                 offpeak=offpeak, day=day_rate, peak=peak, export_rate=export_rate, standing=standing, carbon=carbon)
+                 offpeak=offpeak, day=day_rate, peak=peak, export_rate=export_rate, standing=standing, carbon=carbon,
+                 dr_dim=dr_dim,dr_relief=dr_relief,dr_shift="on" in (dr_shift or []),dr_reward=dr_reward)
     return sanitize(state)
 
 
@@ -226,15 +229,52 @@ def render_climate(raw, index):
     return f"{state['temperature']:g}", charts.climate(day, index), charts.climate_load(day), stats
 
 
-@app.callback(Output("dr-chart", "figure"), Output("dr-metrics", "children"), Input("scenario", "data"))
+@app.callback(Output("dr-chart", "figure"), Output("dr-metrics", "children"),
+              Output("dr-impact-chart","figure"),Output("dr-plan","children"),Output("dr-explanation","children"),
+              Input("scenario", "data"))
 def render_flex(raw):
-    state = sanitize(raw)
-    day, _, event = evaluate_state(state)
+    result=flex_report(raw)
+    state,day,event=result["state"],result["day"],result["event"]
     cards = [
+        metric("Import without response",f"{result['before_kwh']:.2f}","kWh","Matched 17:00–19:00 baseline","grid",result["baseline"].grid_in[68:76],"blue"),
+        metric("Import with your settings",f"{result['after_kwh']:.2f}","kWh","Same event window and assets","home",day.grid_in[68:76]),
         card([html.Span("MODELLED EVENT REDUCTION", className="eyebrow"), html.Div([html.Strong(f"{event['reduction']:.2f}"), html.Span("kWh")], className="metric-value"), html.P("Net grid import reduction over 17:00–19:00", className="subtle")]),
-        card([html.Span("ILLUSTRATIVE REWARD", className="eyebrow"), html.Div([html.Strong(f"€{event['reward']:.2f}")], className="metric-value"), html.P("€0.35 × modelled event reduction · no real payment", className="subtle")]),
-        card([html.Span("PARTICIPATION", className="eyebrow"), html.Div([html.Strong("Enabled" if state["dr"] else "Available")], className="metric-value smaller"), html.P("Changes apply to the replayed scenario day", className="subtle")])]
-    return charts.demand_response(day, event), cards
+        card([html.Span("ILLUSTRATIVE REWARD", className="eyebrow"), html.Div([html.Strong(f"€{event['reward']:.2f}")], className="metric-value"), html.P(f"€{state['dr_reward']:.2f}/kWh × reduction · no real payment", className="subtle")])]
+    rows=[]
+    for row in result["rows"]:
+        status="Disabled" if not row["enabled"] else ("Shifted" if row["shifted"] else ("Unchanged" if row["flexible"] else "Fixed window"))
+        rows.append(html.Tr([html.Td(row["name"]),html.Td(row["before"] if row["enabled"] else "—"),
+            html.Td(row["after"] if row["enabled"] else "—"),html.Td(f"{row['energy']:.2f} kWh"),
+            html.Td(f"{row['event_delta']:+.2f} kWh"),html.Td(pill(status,"green" if row["shifted"] else "muted"))]))
+    table=html.Table([html.Thead(html.Tr([html.Th(text) for text in
+        ("Appliance","Without response","Your settings","Cycle energy","Event load avoided","Action")])),html.Tbody(rows)],className="ledger")
+    explanation=[html.Div([html.Strong(f"{result['before_peak']:.2f} → {result['after_peak']:.2f} kW"),html.Span("Peak import in event")]),
+        html.Div([html.Strong(f"€{result['bill_delta']:+.2f}"),html.Span("Whole-day bill benefit · excludes reward")]),
+        html.Div([html.Strong(f"{result['event_carbon_delta']:+.2f} kg"),html.Span("Event import carbon avoided")]),
+        html.P(f"Your strategy: {'shift flexible loads' if state['dr_shift'] else 'keep appliance windows'}; reduce lighting power by {state['dr_dim']:g}%; relax heating/cooling by {state['dr_relief']:g}°C. "
+            +("Participation is enabled." if state["dr"] else "Participation is off, so the comparison currently shows no response.")
+            +" Storage interaction captures the change in battery dispatch and export; negative contributions are retained.",className="footnote")]
+    return charts.demand_response(day,event),cards,charts.flex_impacts(result),table,explanation
+
+
+@app.callback(Output("dr-event-status","children"),Output("dr-now","children"),
+              Input("scenario","data"),Input("live-state","data"))
+def render_flex_now(raw,live):
+    live=live or {}
+    result=flex_report(raw,live.get("index",70))
+    state=result["state"]; seconds=int(live.get("seconds",17.5*3600)); i=result["index"]
+    active=17*3600<=seconds<19*3600
+    stage="Event active" if active else ("Event upcoming" if seconds<17*3600 else "Event complete")
+    until=(19*3600-seconds) if active else ((17*3600-seconds)%86400)
+    counter=f"{until//3600:02d}h {until%3600//60:02d}m"
+    status=[pill(stage,"amber" if active else "blue"),html.H3("Response enabled" if state["dr"] else "Response is off"),
+        html.P(("Time remaining · " if active else "Next event in · ")+counter,className="event-countdown"),
+        html.Div(html.Div(style={"width":f"{max(0,min(100,(seconds-17*3600)/7200*100)):.2f}%"}),className="event-progress")]
+    now=[html.Span(f"{seconds//3600:02d}:{seconds%3600//60:02d} · model time",className="eyebrow"),
+        html.Div([html.Span("Without response"),html.Strong(f"{result['baseline'].grid_in[i]:.2f} kW")]),
+        html.Div([html.Span("Your settings"),html.Strong(f"{result['day'].grid_in[i]:.2f} kW")]),
+        html.Small("Schedule-based meter import · animation follows the selected scenario")]
+    return status,now
 
 
 @app.callback(Output("analytics-metrics", "children"), Output("cost-comparison", "figure"),
@@ -271,7 +311,8 @@ def export_csv(raw):
                "battery_discharge_kw", "battery_soc_start_kwh", "battery_soc_end_kwh", "grid_import_kw", "grid_export_kw",
                "import_eur_per_kwh", "export_eur_per_kwh", "standing_charge_eur", "net_cost_eur",
                "carbon_kg_co2e", "reference_home_kw", "reference_import_kw", "reference_export_kw",
-               "reference_net_cost_eur", "flex_reward_eur", "grid_carbon_kg_per_kwh", "mode"]
+               "reference_net_cost_eur", "flex_reward_eur", "grid_carbon_kg_per_kwh", "mode",
+               "dr_enabled","dr_lighting_reduction_percent","dr_thermostat_relief_c","dr_shift_cycles","dr_reward_eur_per_kwh"]
     stream = io.StringIO(newline="")
     writer = csv.DictWriter(stream, fieldnames=columns)
     writer.writeheader()
@@ -281,7 +322,8 @@ def export_csv(raw):
                day.discharge[i], day.soc[i], day.soc[i + 1], day.grid_in[i], day.grid_out[i],
                day.prices[i], state["export_rate"], standing, day.interval_cost[i] + standing,
                day.grid_in[i] * DT * state["carbon"], reference.load[i], reference.grid_in[i], reference.grid_out[i],
-               reference.interval_cost[i] + standing, event["reward"] if i == 0 else 0, state["carbon"], "SIMULATED"]
+               reference.interval_cost[i] + standing, event["reward"] if i == 0 else 0, state["carbon"], "SIMULATED",
+               state["dr"],state["dr_dim"],state["dr_relief"],state["dr_shift"],state["dr_reward"]]
         writer.writerow({key: round(float(value), 8) if isinstance(value, (float, np.floating)) else value
                          for key, value in zip(columns, row)})
     return stream.getvalue()
@@ -292,7 +334,7 @@ def export_csv(raw):
 def download(n_clicks, raw):
     if not n_clicks:
         raise PreventUpdate
-    return dcc.send_string(export_csv(raw), f"verdant-simulated-{DEMO_DATE.isoformat()}.csv")
+    return dcc.send_string(export_csv(raw), f"smart-simulated-{DEMO_DATE.isoformat()}.csv")
 
 
 @app.callback(Output("irish-clock","children"),Output("irish-date","children"),Output("analog-clock","src"),
@@ -324,29 +366,33 @@ def advance_simulation(_,raw,mode,manual_slot,overrides,previous,current_index):
               Output("home-scene","triggerResetCamera"),
               Output("devices-scene","children"),Output("devices-scene","triggerRender"),
               Output("devices-scene","triggerResetCamera"),
-              Output("scene-memory","data"),
+              Output("grid-scene","children"),Output("grid-scene","triggerRender"),
+              Output("grid-scene","triggerResetCamera"),Output("scene-memory","data"),
               Input("live-state","data"),Input("home-envelope","value"),Input("devices-envelope","value"),
-              Input("navigation","value"),Input("home-zoom","data"),Input("devices-zoom","data"),
-              State("scene-memory","data"))
-def render_scenes(snapshot,home_mode,device_mode,page,home_zoom,device_zoom,memory):
+              Input("grid-envelope","value"),Input("navigation","value"),
+              Input("home-zoom","data"),Input("devices-zoom","data"),Input("grid-zoom","data"),
+              State("scene-memory","data"),State("scenario","data"))
+def render_scenes(snapshot,home_mode,device_mode,grid_mode,page,home_zoom,device_zoom,grid_zoom,memory,raw):
     snapshot=snapshot or {}
     memory=dict(memory or {})
-    signature=json.dumps([snapshot.get("lighting_levels",{}),
-        {key:float(value)>.001 for key,value in snapshot.get("appliances",{}).items()}],sort_keys=True)
     values=[]
-    for prefix,mode,visible,zoom_data in [("home",home_mode,page=="overview",home_zoom),("devices",device_mode,page=="devices",device_zoom)]:
+    for prefix,mode,visible,zoom_data in [("home",home_mode,page=="overview",home_zoom),
+            ("devices",device_mode,page=="devices",device_zoom),("grid",grid_mode,page=="flexibility",grid_zoom)]:
+        current=network_snapshot(raw,snapshot) if prefix=="grid" else snapshot
         mode=mode if mode in ("exterior","interior","xray") else "exterior"
         zoom_data=zoom_data or {}
         zoom=max(.55,min(3.5,float(zoom_data.get("factor",1))))
-        view_signature=signature+str(zoom)
+        signature=json.dumps([current.get("lighting_levels",{}),
+            {key:float(value)>.001 for key,value in current.get("appliances",{}).items()},
+            current.get("sky",{}).get("street_on",False),current.get("dr_active",False),current.get("dr_dim",50),zoom],sort_keys=True)
         if not visible:
             values.extend([no_update,no_update,no_update])
         else:
             full=ctx.triggered_id in (None,"navigation",prefix+"-envelope") or memory.get(prefix,{}).get("mode")!=mode
-            changed=memory.get(prefix,{}).get("signature")!=view_signature
-            reset=datetime.now(timezone.utc).timestamp() if ctx.triggered_id==prefix+"-zoom" and zoom_data.get("action")=="reset" else no_update
-            values.extend([scene_children(prefix,mode,snapshot,zoom) if full else scene_patch(prefix,mode,snapshot,changed,zoom),snapshot.get("stamp",0),reset])
-            memory[prefix]={"mode":mode,"signature":view_signature}
+            changed=memory.get(prefix,{}).get("signature")!=signature
+            reset=datetime.now(timezone.utc).timestamp() if (ctx.triggered_id==prefix+"-zoom" and zoom_data.get("action")=="reset") or (prefix=="grid" and prefix not in memory) else no_update
+            values.extend([scene_children(prefix,mode,current,zoom) if full else scene_patch(prefix,mode,current,changed,zoom),current.get("stamp",0),reset])
+            memory[prefix]={"mode":mode,"signature":signature}
     return values+[memory]
 
 
@@ -377,6 +423,8 @@ def register_viewer_callbacks(prefix):
 
     @app.callback(Output(prefix+"-hover-detail","children"),Input(prefix+"-scene","hoverInfo"),State("live-state","data"))
     def hover(info,snapshot):
+        if prefix=="grid":
+            return "Blue cable: grid connection · moving particles follow meter flow"
         picked=picked_object(info)
         snapshot=snapshot or {}
         if not picked:
@@ -390,7 +438,7 @@ def register_viewer_callbacks(prefix):
         return ROOMS[key]["name"]
 
 
-for _prefix in ("home","devices"):
+for _prefix in ("home","devices","grid"):
     register_viewer_callbacks(_prefix)
 
 
@@ -404,6 +452,9 @@ for _prefix in ("home","devices"):
     Output("devices-model-time","children"),
     Output({"type":"room-switch","room":ALL},"className"),
     Output({"type":"room-switch","room":ALL},"aria-pressed"),
+    Output({"type":"room-tile","room":ALL},"className"),
+    Output({"type":"light-detail","room":ALL},"children"),
+    Output({"type":"light-meter","room":ALL},"style"),Output("lighting-summary","children"),
     Input("live-state","data"),Input("selected-room","value"),
     State({"type":"live-room","room":ALL},"id"),State({"type":"light-switch-label","room":ALL},"id"),
     State({"type":"live-device-label","device":ALL},"id"))
@@ -440,18 +491,53 @@ def render_live(snapshot,room,room_ids,light_ids,device_ids):
     model_time=f"{seconds//3600:02d}:{seconds%3600//60:02d}:{seconds%60:02d}"
     mode_label={"irish":"Europe/Dublin · clock-synchronized simulation","play":"Accelerated model time · ×300","manual":"Fixed time conditions · thermal / battery model evolving"}[snapshot["mode"]]
     rooms=[f"{snapshot['temperatures'][item['room']]:.2f}°C · {snapshot['room_power'][item['room']]*1000:.0f} W" for item in room_ids]
-    lights=["On" if snapshot["lighting_levels"][item["room"]]>0 else "Off" for item in light_ids]
+    lights=["ON" if snapshot["lighting_levels"][item["room"]]>0 else "OFF" for item in light_ids]
     devices=[f"{snapshot['appliances'][item['device']]*1000:.0f} W · {snapshot['overrides'][item['device']].upper()}" for item in device_ids]
     classes=["house-switch" if snapshot["lighting_levels"][item["room"]]>0 else "house-switch off" for item in light_ids]
     pressed=["true" if snapshot["lighting_levels"][item["room"]]>0 else "false" for item in light_ids]
+    tiles=["room-control-row light-tile "+("is-on" if snapshot["lighting_levels"][item["room"]]>0 else "is-off") for item in light_ids]
+    details=[f"{snapshot['lighting_levels'][item['room']]:g}% brightness · {snapshot['lights'][item['room']]*1000:.1f} W lighting" for item in light_ids]
+    meters=[{"width":f"{snapshot['lighting_levels'][item['room']]:g}%"} for item in light_ids]
+    summary=[html.Strong(f"{sum(value>0 for value in snapshot['lighting_levels'].values())} / 6 rooms lit"),
+             html.Span(f"{sum(snapshot['lights'].values())*1000:.1f} W total lighting")]
     return (metrics,charts.live_flow(snapshot),stats,detail,charts.live_profile(snapshot),assets,session_label,
         f"{snapshot['outdoor']:.1f}°C",model_time,mode_label,model_time[:5],rooms,lights,devices,
-        model_time+" · "+mode_label,classes,pressed)
+        model_time+" · "+mode_label,classes,pressed,tiles,details,meters,summary)
 
 
-@app.callback(Output("clock-mode","value"),Input("devices-play","n_clicks"),Input("devices-irish","n_clicks"),prevent_initial_call=True)
-def set_devices_clock(play_clicks,irish_clicks):
-    return "play" if ctx.triggered_id=="devices-play" else "irish"
+@app.callback(Output("clock-mode","value"),Output("simulation-time","value"),
+    Input("devices-play","n_clicks"),Input("devices-irish","n_clicks"),
+    Input("devices-day","n_clicks"),Input("devices-night","n_clicks"),
+    Input("dr-preview","n_clicks"),Input("dr-irish","n_clicks"),prevent_initial_call=True)
+def set_devices_clock(*clicks):
+    trigger=ctx.triggered_id
+    if trigger=="devices-play":
+        return "play",no_update
+    slots={"devices-day":52,"devices-night":84,"dr-preview":72}
+    if trigger in slots:
+        return "manual",slots[trigger]
+    return "irish",no_update
+
+
+def register_sky_callback(prefix):
+    @app.callback(Output(prefix+"-scene","background"),Output(prefix+"-sky-dressing","className"),
+        Output(prefix+"-sky-orb","className"),Output(prefix+"-sky-orb","style"),
+        Output(prefix+"-sky-label","children"),Output(prefix+"-sky-status","children"),Input("live-state","data"))
+    def draw_sky(snapshot):
+        if not snapshot or "sky" not in snapshot:
+            raise PreventUpdate
+        sky=snapshot["sky"]
+        caption=[html.Strong("Daylight" if sky["daylight"] else "After sunset"),
+            html.Span(sky["local_time"]+" · Dublin model time")]
+        status=[html.Span(f"Sunrise {sky['sunrise']} · Sunset {sky['sunset']} · {sky['date']}"),
+            html.Strong("Street lights ON · automatic" if sky["street_on"] else "Street lights OFF · daylight"),
+            html.Small("Public street lighting is outside the home's energy meter. Moon is a night symbol.")]
+        return (sky["background"],"sky-dressing "+sky["phase"],"sky-orb "+sky["orb"],
+            {"left":f"{sky['orb_left']:.2f}%"},caption,status)
+
+
+for _sky_prefix in ("home","devices","grid"):
+    register_sky_callback(_sky_prefix)
 
 
 if __name__ == "__main__":

@@ -89,7 +89,7 @@ def sidebar():
               ("flexibility", "flex", "Demand response"), ("settings", "settings", "System & assumptions")]
     return html.Aside([
         html.Div([html.Span(icon("bolt", 27, "#101a13"), className="brand-mark"),
-                  html.Div([html.Strong("verdant"), html.Span("HOME ENERGY")])], className="brand"),
+                  html.Div([html.Strong("Smart"), html.Span("HOME ENERGY")])], className="brand"),
         html.Div([html.Span("MY WORKSPACE", className="eyebrow"),
                   html.Div([icon("home", 18), html.Div([html.Strong("The Green House"), html.Span("Dublin · demo residence")]), html.Span("⌄")], className="home-selector")], className="workspace-select"),
         html.P("MANAGE YOUR HOME", className="nav-caption"),
@@ -101,7 +101,7 @@ def sidebar():
             html.P("Explore what a more efficient home could look like.", className="subtle"),
             pill("ENERGY IN BALANCE", "muted")
         ], className="sidebar-bottom"),
-        html.Div([html.Span("VE", className="avatar"), html.Div([html.Strong("Examiner workspace"), html.Small("Interactive demonstration")])], className="profile")
+        html.Div([html.Span("SM", className="avatar"), html.Div([html.Strong("Examiner workspace"), html.Small("Interactive demonstration")])], className="profile")
     ], className="sidebar")
 
 
@@ -119,10 +119,15 @@ def scene_panel(prefix="home", mode="exterior"):
                 html.Button("Reset view",id=prefix+"-reset-camera",className="button secondary"),
                 switch(prefix+"-expand","Large view",False)],className="viewer-actions")
         ],className="viewer-toolbar"),
-        html.Div(house_view(prefix, mode),id=prefix+"-canvas-wrap",className="house-canvas"),
+        html.Div([
+            house_view(prefix, mode),
+            html.Div([html.Div(className="sky-stars"),html.Div(id=prefix+"-sky-orb",className="sky-orb sun"),
+                html.Div(id=prefix+"-sky-label",className="sky-caption")],id=prefix+"-sky-dressing",className="sky-dressing day"),
+        ],id=prefix+"-canvas-wrap",className="house-canvas"),
+        html.Div(id=prefix+"-sky-status",className="sky-status"),
         html.Div([html.Span("Drag: orbit · wheel / right-drag: zoom · Shift-drag: pan"),
-                  html.Span("Inside / X-ray → click a bulb or appliance")],className="viewer-help"),
-        html.Div(id=prefix+"-hover-detail",className="scene-hover",children="Gold bulbs: lighting · cyan equipment: operating · grey: off / scheduled")
+                  html.Span("Schedule-based network preview" if prefix=="grid" else "Inside / X-ray → click a bulb or appliance")],className="viewer-help"),
+        html.Div(id=prefix+"-hover-detail",className="scene-hover",children="Blue cable: grid connection · moving particles follow meter flow" if prefix=="grid" else "Gold bulbs: lighting · cyan equipment: operating · grey: off / scheduled")
     ],className="scene-panel")
 
 
@@ -140,14 +145,19 @@ def live_controls():
 
 def house_device_controls():
     room_controls = [html.Div([
-        html.Div([html.Strong(info["name"]),html.Small(id={"type":"live-room","room":key})]),
+        html.Div([icon("bulb",24),html.Div([html.Strong(info["name"]),
+            html.Small(id={"type":"live-room","room":key})])],className="light-room-heading"),
         html.Button([icon("bulb",18),html.Span("On",id={"type":"light-switch-label","room":key})],
             id={"type":"room-switch","room":key},className="house-switch",title="Toggle "+info["name"]+" lighting",
-            **{"aria-label":"Toggle "+info["name"]+" lighting","aria-pressed":"true"})
-    ],className="room-control-row") for key,info in ROOMS.items()]
+            **{"aria-label":"Toggle "+info["name"]+" lighting","aria-pressed":"true"}),
+        html.Div(id={"type":"light-detail","room":key},className="light-detail"),
+        html.Div(html.Div(id={"type":"light-meter","room":key}),className="light-meter")
+    ],id={"type":"room-tile","room":key},className="room-control-row light-tile") for key,info in ROOMS.items()]
     return html.Div([
-        card([heading("Rooms, alive", "Modelled temperature · allocated instantaneous demand"),
-              *room_controls,html.P("Click a gold bulb in the house or use its room switch. Brightness sliders below stay synchronized.",className="footnote")]),
+        card([heading("Lighting you can see", "Gold = ON · dark = OFF · the room floor follows your switch"),
+              html.Div(id="lighting-summary",className="lighting-summary"),
+              html.Div(room_controls,className="room-light-grid"),
+              html.P("The large status, brightness bar and room glow update together. Each watt reading below is lighting only; the smaller room reading includes appliances and HVAC.",className="footnote")]),
         card([heading("Equipment key", "The same symbols appear above each appliance"),
             html.Div([html.Button([icon(item["icon"],22),html.Div([html.Strong(item["name"]),
                 html.Small(id={"type":"live-device-label","device":key})])],
@@ -227,12 +237,14 @@ def devices():
                   pill("SIMULATED CONTROLS", "demo")], className="page-intro"),
         html.Div([html.Strong(id="devices-model-time"),html.Div([
             html.Button("Play day ×300",id="devices-play",className="button secondary"),
-            html.Button("Irish time",id="devices-irish",className="button secondary")],className="inline")],className="device-clock-bar"),
+            html.Button("Irish time",id="devices-irish",className="button secondary"),
+            html.Button("Day preview",id="devices-day",className="button secondary"),
+            html.Button("Night preview",id="devices-night",className="button secondary")],className="inline")],className="device-clock-bar"),
         html.Div([card([heading("Control the house directly", "Click a light or an appliance symbol · scroll to inspect the details"),
                        scene_panel("devices","interior")],"device-house-card"),house_device_controls()],className="interactive-device-grid"),
         html.Div([html.H2("Daily appliance schedules"),html.P("Scheduled operation is separate from the live On/Off overrides above.",className="subtle")],className="section-title"),
         html.Div(device_cards, className="three-col"),
-        html.Div([html.Div([html.H2("Lighting, room by room"), html.P("Brightness is a scenario setting; daylight uses 30% of the selected power from 08:00 to 17:00.", className="subtle")]),
+        html.Div([html.Div([html.H2("Lighting, room by room"), html.P("Live lighting follows calculated Dublin daylight. Daily projections use 30% power from 08:00 to 17:00.", className="subtle")]),
             html.Div([html.Label("QUICK SCENE", className="eyebrow"), dcc.Dropdown(id="scene", options=["Home", "Eco", "Away"], value="Home", clearable=False, searchable=False, className="scene-dropdown")], className="scene-control")], className="section-title"),
         html.Div(light_cards, className="three-col"),
         card([heading("Your appliance schedule", "Enabled devices only · one full cycle per day"),
@@ -259,7 +271,7 @@ def climate_page():
             card([heading("How the estimate works", "Transparent assumptions"),
                 html.Div([html.Strong("0.18"), html.Span("kW/°C · whole-home heat-loss coefficient")], className="assumption-row"),
                 html.Div([html.Strong("3.5 / 3.2"), html.Span("Heating COP / cooling COP · constant")], className="assumption-row"),
-                html.Div([html.Strong("1°C"), html.Span("Target relief during an opted-in flex event")], className="assumption-row"),
+                html.Div([html.Strong("0–2°C"), html.Span("Adjustable target relief in Demand response")], className="assumption-row"),
                 html.P("Daily charts use a quasi-steady balance. The live model adds room thermal mass (0.08 kWh/°C per m²) and thermostat feedback. Humidity, measured sensors and equipment cycling are not modelled.", className="footnote")])
         ], className="two-col")
     ], id="page-climate", className="page hidden")
@@ -285,24 +297,41 @@ def analytics():
 
 def flexibility():
     return html.Div([
-        html.Div([html.Div([html.H1("A flexible home. A stronger grid."), html.P("Test a demand-response event and see what changes during the evening peak.", className="intro-subtitle")]), pill("PROGRAM SIMULATOR", "demo")], className="page-intro"),
-        card([
-            html.Div([html.Div([pill("ILLUSTRATIVE EVENT", "green"), html.H2("Give the grid a little breathing room."),
-                html.P("17:00–19:00 · 2-hour peak reduction window", className="intro-subtitle"),
-                html.Div([html.Span("€0.35"), html.Small("per kWh of modelled import reduction")], className="reward-rate")]),
-                html.Div([icon("flex", 62, "#c4f286"), switch("dr-toggle", "Participate in this simulation", False)], className="event-action")], className="event-banner"),
-            html.P("Opting in reschedules flexible cycles outside the event, halves lighting power during the event, and relaxes the thermostat by 1°C. No enrollment or payment takes place.", className="footnote")
-        ], "event-card"),
-        html.Div(id="dr-metrics", className="three-col"),
+        html.Div([html.Div([html.Div([pill("GRID FLEXIBILITY", "blue"),pill("PROGRAM SIMULATOR", "demo")],className="inline"),
+            html.H1("Your home can help the grid."),
+            html.P("See the connection. Shape your response. Compare the energy that actually crosses the meter.",className="intro-subtitle")]),
+            switch("dr-toggle","Participate in this simulation",False)],className="page-intro flex-intro"),
         html.Div([
-            card([heading("Peak-window comparison", "Matched counterfactual: same settings and battery, with demand response disabled"), graph("dr-chart", 295)]),
-            card([heading("Your flexibility plan", "Changes applied only when participation is enabled"),
-                html.Div([icon("appliance", 23), html.Div([html.Strong("Move flexible cycles"), html.P("Washer, dishwasher, hot water and EV charging avoid 17:00–19:00.")])], className="plan-row"),
-                html.Div([icon("bulb", 23), html.Div([html.Strong("Dim the lights"), html.P("50% less lighting power within the event window.")])], className="plan-row"),
-                html.Div([icon("climate", 23), html.Div([html.Strong("Ease the thermostat"), html.P("Heating target −1°C; cooling target +1°C during the event.")])], className="plan-row"),
-                html.P("Reward = max(0, matched import reduction in kWh) × €0.35. This simplified model is not a supplier's settlement or eligibility calculation.", className="footnote")])
-        ], className="two-col wide-left")
-    ], id="page-flexibility", className="page hidden")
+            card([heading("From the grid to your home", "Illustrative transmission → local transformer → meter → home"),
+                scene_panel("grid","exterior"),
+                html.Div([html.Span("TRANSMISSION PYLON"),html.Span("→"),html.Span("LOCAL TRANSFORMER"),html.Span("→"),
+                    html.Span("METER"),html.Span("→"),html.Span("YOUR HOME")],className="grid-route"),
+                html.P("Network geometry is a teaching schematic, not an electrical installation design. This viewer uses the daily schedule projection; live manual appliance overrides are excluded.",className="footnote")],"network-card"),
+            html.Div([
+                card([html.Div(id="dr-event-status"),html.Div(id="dr-now",className="dr-now"),
+                    html.Div([html.Button("Preview event · 18:00",id="dr-preview",className="button"),
+                        html.Button("Follow Irish time",id="dr-irish",className="button secondary")],className="dr-preview-actions"),
+                    html.P("Event window 17:00–19:00 · Irish model time. Preview changes the simulation clock; the header keeps actual local time.",className="footnote")],"event-status-card"),
+                card([heading("Build your response", "Applied only while participation is enabled"),
+                    switch("dr-shift","Shift flexible appliance cycles",True),
+                    html.Label("Lighting power reduction",className="dr-setting-label"),
+                    dcc.Slider(id="dr-dim",min=0,max=80,step=5,value=50,marks={0:"0%",40:"40%",80:"80%"},tooltip={"always_visible":False}),
+                    html.Label("Thermostat relief",className="dr-setting-label"),
+                    dcc.Slider(id="dr-relief",min=0,max=2,step=.25,value=1,marks={0:"0°C",1:"1°C",2:"2°C"},tooltip={"always_visible":False}),
+                    html.Label("Illustrative reward · €/kWh reduced",htmlFor="dr-reward",className="dr-setting-label"),
+                    dcc.Input(id="dr-reward",type="number",min=0,max=1,step=.05,value=.35,debounce=True,className="number-input"),
+                    html.P("Heating target decreases; cooling target increases. Flexible cycles finish outside the event with the same cycle energy. No enrollment or payment takes place.",className="footnote")],"response-controls")
+            ],className="flex-sidebar")
+        ],className="flex-grid"),
+        html.Div(id="dr-metrics",className="metrics-grid"),
+        html.Div([
+            card([heading("Import at the meter", "Same home, weather, PV and battery · demand response is the only difference"),graph("dr-chart",295)]),
+            card([heading("Where the event reduction comes from", "Signed contribution · kWh over 17:00–19:00"),graph("dr-impact-chart",295)])
+        ],className="two-col"),
+        card([heading("Your response plan", "Operating windows before and after participation · full-cycle energy preserved"),
+            html.Div(id="dr-plan",className="table-wrap"),html.Div(id="dr-explanation",className="dr-explanation")]),
+        html.Div([icon("info",18),html.Span("Event reduction and reward use the matched daily projection, not the live RC model. Loads shifted outside the event still consume energy; reducing the peak does not automatically reduce the full-day bill.")],className="notice")
+    ],id="page-flexibility",className="page hidden")
 
 
 def settings():
@@ -364,6 +393,6 @@ def layout(today):
                           html.Button([icon("download", 15), "Export CSV"], id="export-button", className="button secondary")], className="header-actions")
             ], className="topbar"),
             html.Div([html.Div(id="control-feedback",className="control-feedback",role="status"),overview(), devices(), climate_page(), analytics(), flexibility(), settings()], className="page-content"),
-            html.Footer([html.Span([html.Strong("verdant"), " · Home Energy Management"]), html.Span("Scenario mode · Synthetic data only")], className="footer")
+            html.Footer([html.Span([html.Strong("Smart"), " · Home Energy Management"]), html.Span("Scenario mode · Synthetic data only")], className="footer")
         ], className="main-content")
     ], className="app-shell")

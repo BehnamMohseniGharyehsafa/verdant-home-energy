@@ -123,6 +123,20 @@ def demand_response(day, event):
     return fig
 
 
+def flex_impacts(result):
+    labels=list(result["impacts"])
+    values=list(result["impacts"].values())
+    fig=go.Figure(go.Bar(x=values,y=labels,orientation="h",
+        marker_color=[GREEN if value>=0 else "#e7ad82" for value in values],
+        text=[f"{value:+.2f}" for value in values],textposition="auto",
+        hovertemplate="%{y}<br>%{x:+.3f} kWh<extra></extra>"))
+    style(fig,295)
+    fig.update_layout(showlegend=False,margin=dict(l=12,r=20,t=12,b=30))
+    fig.update_xaxes(title="Event import reduction · kWh",zeroline=True,zerolinecolor="#a1b3b7",gridcolor=GRID)
+    fig.update_yaxes(autorange="reversed",showgrid=False)
+    return fig
+
+
 def comparison(rows, kind="cost"):
     fig = go.Figure()
     label, refkey, unit = {"cost": ("cost", "reference_cost", "€"),

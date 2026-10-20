@@ -1,6 +1,6 @@
 # Architecture
 
-Verdant uses Dash's Python component tree and callbacks, Plotly analytics, and a Python-generated VTK WebGL house. The browser runtime is supplied by the frameworks; no handwritten JavaScript application is required. Dash 2.18.2 and bundled React 16.14.0 are explicitly selected for dash-vtk 0.0.9 compatibility.
+Smart uses Dash's Python component tree and callbacks, Plotly analytics, and a Python-generated VTK WebGL house. The browser runtime is supplied by the frameworks; no handwritten JavaScript application is required. Dash 2.18.2 and bundled React 16.14.0 are explicitly selected for dash-vtk 0.0.9 compatibility.
 
 ```mermaid
 flowchart TD
@@ -29,6 +29,9 @@ flowchart TD
 | `app.py` | Callback wiring, scenario state, derived component values, health endpoint and CSV export |
 | `energy.py` | Parameter validation, synthetic weather/PV/load profiles, scheduling, storage dispatch, references and totals |
 | `runtime.py` | Irish clock, elapsed model time, room heat balance, live battery integration, manual appliance overrides and session counters |
+| `environment.py` | NOAA approximate solar clock for the fixed Dublin demo location, including the Irish UTC/DST offset |
+| `scene_assets.py` | Procedural fastback EV, branching trees, automatic streetlight geometry, lattice pylon, transformer, meter and cable |
+| `flexibility.py` | Matched event accounting, signed contributions, cycle-plan comparison and daily-projection network snapshot |
 | `house_scene.py` | Complete envelope/roof, furnished interior, rooftop PV, EV/charger/battery, pickable bulb/appliance symbols, camera presets and efficient scene patches |
 | `charts.py` | Reusable Plotly figures; no independent accounting formulas |
 | `assets/style.css`, `assets/interactive.css` | Local theme, responsive layouts, clock, focus states, viewer and direct controls |
@@ -57,6 +60,12 @@ Both house viewers share brightness and appliance state. Only explicit IDs such 
 Static meshes are cached and grouped by opacity into a few RGB-colored batches. Full children are sent when a view/envelope changes. Live ticks patch a small particle-point buffer and battery fill; control changes also patch colors, light pools and actor transforms. Camera state is retained. Explicit zoom controls scale the displayed scene consistently, while native VTK orbit, pan and dolly interaction remains available.
 
 The architecture is illustrative: window openings, slate roof, cedar facade, furniture and visible equipment improve spatial clarity, but it is not a surveyed building or photorealistic architectural model. The server generates mesh arrays without importing native VTK's renderer.
+
+Three viewers share the clock and scene infrastructure. The network viewer starts with empty geometry and loads on first navigation to Demand response. All modes keep the same material/actor slots to avoid VTK disposal races. Sky overlays and VTK backgrounds update from calculated Dublin daylight; streetlight actors switch visibility, and night materials become darker. The moon is a night symbol. Public streetlights do not enter home energy accounting.
+
+Lighting tiles expose an explicit ON/OFF state, brightness bar and lighting-only watts; room totals retain their separately labelled HVAC/appliance allocation. The house floor tint and bulb state follow the same controls. Live daylight dimming uses the solar clock, while daily projections keep their documented autumn schedule.
+
+Demand-response settings enter `sanitize()` and the daily model. Flexible cycles can shift, lighting power can reduce 0–80%, thermostat targets can relax 0–2°C, and the reward rate is bounded to €0–1/kWh. `flexibility.report()` compares with the same settings except participation disabled. Its signed load effects plus storage interaction reconcile to net event import change. The network scene uses that daily projection rather than live manual overrides; this boundary is visible beside the scene and charts.
 
 ## Deployment
 

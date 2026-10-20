@@ -5,11 +5,12 @@ Verified on **20 October 2026**. These checks validate implementation and intern
 ## Automated checks
 
 - Isolated local environment: Python 3.13.7, Dash 2.18.2, bundled React 16.14.0, dash-vtk 0.0.9, Plotly 6.3.0, NumPy 2.3.3 and tzdata 2026.5. `pip check`: **no broken requirements**.
-- Windows: **39 passed, 1 skipped**. The skipped check starts Gunicorn and is specific to Linux.
-- Ubuntu/GitHub Actions: **successful** for the updated implementation, commit `633d96f5eb26c9e998aef556f44b267938066dee`. [Verified production-check run](https://github.com/BehnamMohseniGharyehsafa/verdant-home-energy/actions/runs/39434361354). The workflow installs the same requirements and starts the actual Gunicorn production entry point, including `/healthz` and Dash layout routes.
+- Windows: **47 passed, 1 skipped**. The skipped check starts Gunicorn and is specific to Linux.
+- Linux deployment checks run in [GitHub Actions](https://github.com/BehnamMohseniGharyehsafa/verdant-home-energy/actions). The workflow installs the same requirements and starts the actual Gunicorn production entry point, including `/healthz` and Dash layout routes.
 - Daily and live power conservation, battery losses/capacity/power limits, room allocation, tariff boundaries, bill/carbon arithmetic, cycle-preserving scheduling, matched DR reward, invalid parameters and CSV reconciliation all pass.
 - New checks cover Irish GMT/IST daylight-saving boundaries, clock/playback/manual modes, evolving room thermal state, live EV On/Off power, live overrides excluded from daily projections, inactive-session resets, valid mesh normals/colors/indices, distinct control IDs, stable actor order across envelope modes, small scene patches and zoom transforms.
 - Actual Dash HTTP POSTs verify a 3D bulb switches off and restores its remembered dim level on the next click, both consumed pick states clear, EV picks apply live overrides, and architectural surfaces cannot trigger devices.
+- New checks cover Dublin sunrise/sunset sanity bounds, the Irish DST clock change, seasonal day/night behavior, public lights outside the household meter, zero PV after sunset, configurable DR cycle-energy preservation, contribution reconciliation, zero-strategy/opt-out rewards, live versus network model boundaries and actual Dash strategy inputs reaching the model/CSV.
 
 ## Browser checks
 
@@ -17,6 +18,9 @@ Verified on **20 October 2026**. These checks validate implementation and intern
 - Explicit Zoom in/out and Reset view work, and zoom remains in place through live ticks. Native VTK orbit/pan/dolly controls are available.
 - A **direct click on the 3D living-room bulb** switches it off, updates its dimmer and removes its light pool; clicking the same location again restores 65%. A **direct 3D EV-symbol click** switches charging off. Adjacent room/equipment buttons also update the same state.
 - The actual Irish clock advances independently of model playback. Accelerated playback changes live demand, solar, grid flow, battery charge and indoor temperature; returning to Irish time restores local-time conditions.
+- Smart branding, sun/moon/stars, daytime/nighttime shading, refined trees/EV and automatic streetlights render. Night preview switches the streetlights on; Day preview and Irish time restore the appropriate solar-clock state.
+- Room switches show gold ON or dark OFF tiles, brightness bars and lighting-only watts. Switching the living room off at night changes six lit rooms to five, removes 54.6 W of lighting and removes that room's floor glow.
+- The demand-response pylon/transformer/meter/house scene renders. Participation and event preview update status/countdown; changing thermostat relief and reward updates the strategy text and reward calculation. The signed contribution chart and appliance-plan table render.
 - Home/Eco scenes update room dimmers and thermostat targets.
 - Enabling the EV schedule changes modeled demand; tariff scheduling updates flexible operating windows to off-peak starts.
 - Thermostat keyboard control updates the target.
@@ -31,9 +35,11 @@ Verified on **20 October 2026**. These checks validate implementation and intern
 
 - [Desktop overview](images/overview.jpg)
 - [Interactive furnished interior](images/interior.jpg)
+- [Night lighting and automatic streetlights](images/night.jpg)
 - [Demand-response simulator](images/demand-response.jpg)
+- [Demand-response contribution analytics](images/demand-response-analytics.jpg)
 - [Energy analytics](images/analytics.jpg)
-- [Phone overview](images/mobile.jpg)
+- [Phone lighting controls](images/mobile.jpg)
 
 ## Publication boundary
 

@@ -9,6 +9,7 @@ import math
 
 import numpy as np
 from energy import DEVICES, ROOMS, evaluate_state, sanitize
+from environment import sky_state
 
 IRELAND = ZoneInfo("Europe/Dublin")
 TOTAL_AREA = sum(room["area"] for room in ROOMS.values())
@@ -55,6 +56,7 @@ def step(raw, previous=None, mode="irish", manual_slot=57, overrides=None, now=N
         dt = elapsed  # fixed outdoor/time conditions; physical state continues to evolve
     wrapped = seconds >= 86400
     seconds %= 86400
+    sky = sky_state(local, seconds)
     jumped = changed or wrapped or raw_elapsed > 60 or (mode == "manual" and abs(seconds - previous.get("seconds", seconds)) > 1)
     if mode == "irish" and previous.get("date") != local.date().isoformat():
         jumped = True
@@ -78,7 +80,7 @@ def step(raw, previous=None, mode="irish", manual_slot=57, overrides=None, now=N
             # Daily appliance stages have exact quarter-hour boundaries.
             appliance_power[key] = float(day.schedules[key]["power"][index])
     event = state["dr"] and 17 * 3600 <= seconds < 19 * 3600
-    target = state["temperature"] + ((-1 if state["hvac"] == "heat" else 1) if event else 0)
+    target = state["temperature"] + ((-1 if state["hvac"] == "heat" else 1) * state["dr_relief"] if event else 0)
     average = sum(temperatures[k] * ROOMS[k]["area"] for k in ROOMS) / TOTAL_AREA
     base_hvac = sample(day.loads["Heating & cooling"], seconds)
     if state["hvac"] == "heat":
@@ -89,11 +91,16 @@ def step(raw, previous=None, mode="irish", manual_slot=57, overrides=None, now=N
         thermal = -hvac * 3.2
     else:
         hvac = thermal = 0.0
-    lights = {key: float(day.room_lights[key][index]) for key in ROOMS}
+    daylight_factor = .3 if sky["daylight"] else 1.0
+    event_factor = 1 - state["dr_dim"] / 100 if event else 1.0
+    lights = {key: info["lights_w"] / 1000 * state["lights"][key] / 100 * daylight_factor * event_factor
+              for key, info in ROOMS.items()}
     pv = sample(day.pv, seconds)
     # Small deterministic cloud variation; zero at night and when PV is disabled.
     pv *= 1 + .035 * math.sin(seconds / 73) + .018 * math.sin(seconds / 29)
     pv = min(5.2, max(0, pv))
+    if not sky["daylight"]:
+        pv = 0.0
     baseload = .11 * (1 + .025 * math.sin(seconds / 41))
     power = sum(lights.values()) + sum(appliance_power.values()) + hvac + baseload
     soc = float(previous.get("soc", day.soc[index])) if not jumped else float(day.soc[index])
@@ -142,7 +149,8 @@ def step(raw, previous=None, mode="irish", manual_slot=57, overrides=None, now=N
             "lights": lights, "appliances": appliance_power, "overrides": overrides,
             "price": price, "carbon_rate": imports * state["carbon"], "session": session,
             "history": history, "phase": (stamp % 8) / 8, "target": target,
-            "lighting_levels": state["lights"], "solar_enabled": state["solar"], "hvac_mode": state["hvac"]}
+            "lighting_levels": state["lights"], "solar_enabled": state["solar"], "hvac_mode": state["hvac"],
+            "sky": sky, "dr_active": event, "dr_enabled": state["dr"], "dr_dim": state["dr_dim"]}
 
 
 def picked_object(info):

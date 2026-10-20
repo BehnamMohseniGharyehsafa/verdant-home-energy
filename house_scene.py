@@ -10,6 +10,7 @@ import numpy as np
 import dash_vtk as vtk
 from dash import Patch
 from energy import ROOMS, DEVICES
+from scene_assets import modern_ev, tree, streets, grid_infrastructure, STREET_LIGHTS
 
 FLOORS = {"living": (0, 0, 7, 4.2), "kitchen": (7, 0, 12, 4.2),
           "bedroom": (0, 4.2, 4.5, 9), "bathroom": (4.5, 4.2, 7, 9),
@@ -152,8 +153,8 @@ def roof_height(y):
     return 4.4-abs(y-4.5)*1.5/4.8
 
 
-@lru_cache(maxsize=3)
-def architecture(mode="exterior"):
+@lru_cache(maxsize=6)
+def architecture(mode="exterior",district=False):
     a = Architecture()
     inside = mode == "interior"
     wall = a.m("#ede8dc", .18 if mode == "xray" else 1)
@@ -302,25 +303,8 @@ def architecture(mode="exterior"):
     a.box(12.22,3.65,.75,.46,.035,1.1,dark,.045)
     a.box(15.55,3.73,.18,.48,.38,1.7,dark,.09)
     a.box(15.62,3.68,1.23,.34,.04,.4,"#6e9e99",.035)
-    # EV: sculpted cabin, glass roof, mirrors, wheels, rims and headlamps.
-    a.box(13.15,.05,.32,1.85,3.55,.55,"#3b6984",.30)
-    a.box(13.3,.88,.84,1.55,1.93,.64,"#416f8a",.32)
-    a.box(13.37,.86,.97,1.4,.12,.37,"#9abfc9",.10)
-    a.box(13.37,2.78,.96,1.4,.10,.36,"#648997",.08)
-    for x in (13.29,14.79):
-        a.box(x,1.1,1,.055,1.4,.32,"#89afbd",.025)
-    a.box(13.55,1.2,1.48,1.05,1.1,.025,"#8eb3bf",.12)
-    for x in (13.1,15):
-        for y in (.8,2.8):
-            a.m("#253033").cylinder((x-.12,y,.37),(x+.12,y,.37),.34,32)
-            a.m("#bac4bf").cylinder((x-.13,y,.37),(x+.13,y,.37),.21,24)
-            a.m(dark).cylinder((x-.14,y,.37),(x+.14,y,.37),.08,20)
-    for x in (13.32,14.48):
-        a.box(x,.015,.65,.36,.065,.1,"#f6e9b6",.035)
-        a.box(x,3.57,.64,.36,.04,.09,"#c27467",.025)
-    a.box(13.8,-.01,.43,.55,.025,.12,"#e2e5d9",.02)
-    for x in (12.98,14.99):
-        a.box(x,1.05,1.02,.18,.22,.12,"#446e83",.06)
+    # Contemporary fastback EV with panoramic glazing and turbine alloys.
+    modern_ev(a)
     a.m("#334a48").tube([(15.72-.9*t,3.64-1.15*t,1.2-.85*math.sin(math.pi*t)) for t in np.linspace(0,1,20)],.035)
     a.box(10.8,-1,.12,1.18,.56,.93,"#c4ccc3",.06)
     a.m(dark).cylinder((11.35,-1.015,.59),(11.35,-1.05,.59),.34,32)
@@ -355,11 +339,12 @@ def architecture(mode="exterior"):
                     yy=y+j*d/11
                     cells.line([(x,yy,roof_height(yy)+.09),(x+w,yy,roof_height(yy)+.09)])
         a.box(11.95,3.9,2.77,4.2,5.3,.18,"#586b68")
-    # Rounded foliage and planted borders.
+    # Branched broadleaf trees with irregular clustered foliage.
     for seed,(x,y,height) in enumerate([(-.9,7.8,3.7),(16.8,8.9,3.5),(-.9,-.8,2.2)]):
-        a.m("#82684f").cylinder((x,y,-.05),(x,y,height-.45),.10,14)
-        for j,(dx,dy,dz,radius) in enumerate([(0,0,0,.65),(.3,0,.45,.52),(-.25,.2,.32,.5),(0,-.25,.25,.48)]):
-            a.m(["#60896b","#719573","#4c765e"][(seed+j)%3]).sphere((x+dx,y+dy,height+dz),radius,resolution=8)
+        tree(a,x,y,height,seed+42)
+    streets(a)
+    if district:
+        grid_infrastructure(a)
     for y in np.arange(4,8.9,.55):
         a.box(16.3,float(y),.03,.38,.5,.65,"#618369",.15)
     for x,y in [(5.9,3.5),(.5,5.1),(10.5,6),(16.3,3.4)]:
@@ -386,11 +371,11 @@ def icon_lines(kind):
     return [[(-.65,-.25),(.65,-.25),(.65,.6),(-.65,.6),(-.65,-.25)],[(0,-.25),(0,-.6)],[(-.35,-.6),(.35,-.6)]]
 
 
-@lru_cache(maxsize=3)
-def batches(mode):
+@lru_cache(maxsize=6)
+def batches(mode,district=False):
     """A stable set of material batches across all envelope modes."""
     groups=OrderedDict((opacity,Mesh()) for opacity in STATIC_OPACITIES)
-    for (color,opacity),mesh in architecture(mode).materials.items():
+    for (color,opacity),mesh in architecture(mode,district).materials.items():
         groups[opacity].extend(mesh,color)
     # Keep unused material slots mounted, with valid geometry below the ground.
     # Removing/reordering actors can race VTK's asynchronous render/picking work.
@@ -411,13 +396,15 @@ def badge(kind,position):
     return mesh,glyph
 
 
-def flow_actor(snapshot,channel,dot):
+def flow_actor(snapshot,channel,dot,district=False):
     paths={"solar":[(6.6,2.4,4),(10,3.5,2),(12.45,3.5,1.5)],
            "battery":[(12.45,3.5,1.5),(9.5,2,1.2),(6,2,.5)],
            "ev":[(12.5,3.4,1),(15.7,3.4,1.3),(14.8,2.7,.9)],
            "grid":[(17,-.2,.25),(14,-.4,.35),(6,-.4,.4)]}
     powers={"solar":snapshot.get("pv",0),"battery":snapshot.get("discharge",0)+snapshot.get("charge",0),
             "ev":snapshot.get("appliances",{}).get("ev",0),"grid":snapshot.get("import",0)+snapshot.get("export",0)}
+    if district:
+        paths["grid"]=[(23.8,-.6,.3),(17.4,-2.1,.3),(12.4,.25,.3)]
     path=paths[channel]
     if (channel=="battery" and snapshot.get("charge",0)>0) or (channel=="grid" and snapshot.get("export",0)>0):
         path=list(reversed(path))
@@ -427,7 +414,7 @@ def flow_actor(snapshot,channel,dot):
     return {"pickable":False,"position":xyz(point),"visibility":powers[channel]>.015}
 
 
-@lru_cache(maxsize=2)
+@lru_cache(maxsize=3)
 def dynamic_templates(prefix):
     snapshot = {}
     result=[]
@@ -438,7 +425,10 @@ def dynamic_templates(prefix):
         light.sphere((x,y,2.21),.11,resolution=8)
         result.append(representation(light,f"{prefix}:light:{room}",AMBER if on else "#57666c",pickable=True,ambient=.9))
         result.append(representation(glyph,f"{prefix}-light-glyph-{room}","#233332" if on else "#b7c6ca",ambient=1))
-        pool=Mesh(); pool.sphere((x,y,.083),1.1,scales=(1.3,.8,.008),resolution=12)
+        pool=Mesh()
+        x1,y1,x2,y2=FLOORS[room]
+        pool.box(x1+.15,y1+.15,.075,x2-x1-.3,y2-y1-.3,.006)
+        pool.sphere((x,y,2.21),.18,scales=(1,1,.8),resolution=6)
         result.append(representation(pool,f"{prefix}-pool-{room}",AMBER,opacity=.15 if on else 0,ambient=1))
     for key,position in DEVICE_POSITIONS.items():
         body,glyph=badge(key,position)
@@ -453,8 +443,14 @@ def dynamic_templates(prefix):
     for channel in ("solar","battery","ev","grid"):
         for dot in range(3):
             flow.extend(particle_mesh(),CYAN if channel=="solar" else GREEN)
-    flow.points=flow_points(snapshot)
+    flow.points=flow_points(snapshot,prefix=="grid")
     result.append(representation(flow,prefix+"-flow-motion",GREEN,local=True,ambient=1))
+    bulbs,pools=Mesh(),Mesh()
+    for x,y in STREET_LIGHTS:
+        bulbs.box(x-.12,y-1.10,3.80,.24,.43,.022)
+        pools.sphere((x,y-1.2,-.066),1,scales=(1.5,1.0,.005),resolution=10)
+    result.append(representation(bulbs,prefix+"-street-led",AMBER,ambient=1))
+    result.append(representation(pools,prefix+"-street-glow",AMBER,opacity=.30,ambient=1))
     return result
 
 
@@ -464,12 +460,12 @@ def particle_mesh():
     return mesh
 
 
-def flow_points(snapshot):
+def flow_points(snapshot,district=False):
     unit=np.asarray(particle_mesh().points).reshape(-1,3)
     points=[]
     for channel in ("solar","battery","ev","grid"):
         for dot in range(3):
-            actor=flow_actor(snapshot,channel,dot)
+            actor=flow_actor(snapshot,channel,dot,district)
             center=np.array(actor["position"] if actor["visibility"] else [0,0,-2.1])
             vertices=unit+center if actor["visibility"] else unit*0+center
             points.extend(round(float(v),5) for v in vertices.ravel())
@@ -478,12 +474,14 @@ def flow_points(snapshot):
 
 def dynamic_values(snapshot,zoom=1):
     values = []
+    night=snapshot.get("sky",{}).get("street_on",False)
+    response_factor=(1-snapshot.get("dr_dim",50)/100)**.5 if snapshot.get("dr_active",False) else 1
     for room in ROOMS:
         on = snapshot.get("lighting_levels", {}).get(room, 65) > 0
         values.extend([
             ({"pickable": True,"scale":[zoom]*3}, {"color": rgb(AMBER if on else "#57666c"), "ambient": .9}),
             ({"pickable": False,"scale":[zoom]*3}, {"color": rgb("#233332" if on else "#b7c6ca"), "ambient": 1}),
-            ({"pickable": False,"scale":[zoom]*3}, {"opacity": .24*snapshot.get("lighting_levels",{}).get(room,65)/100 if on else 0, "ambient": 1}),
+            ({"pickable": False,"scale":[zoom]*3}, {"opacity": response_factor*(.48 if night else .32)*(snapshot.get("lighting_levels",{}).get(room,65)/100)**.5 if on else 0, "ambient": 1}),
         ])
     for key in DEVICE_POSITIONS:
         active = snapshot.get("appliances", {}).get(key, 0) > .001
@@ -495,13 +493,15 @@ def dynamic_values(snapshot,zoom=1):
                     "scale": [zoom,zoom,zoom*max(.001,snapshot.get("soc",5)/10)],
                     "visibility": snapshot.get("battery_enabled", True)}, {}))
     values.append(({"pickable":False,"scale":[zoom]*3},{}))
+    values.extend([({"pickable":False,"scale":[zoom]*3,"visibility":night},{"ambient":1}),
+                   ({"pickable":False,"scale":[zoom]*3,"visibility":night},{"opacity":.32,"ambient":1})])
     return values
 
 
 def scene_children(prefix,mode="exterior",snapshot=None,zoom=1):
     snapshot=snapshot or {}
     mode=mode if mode in ("exterior","interior","xray") else "exterior"
-    data=batches(mode)
+    data=batches(mode,prefix=="grid")
     dynamic=[]
     for item,(actor,properties) in zip(dynamic_templates(prefix),dynamic_values(snapshot,zoom)):
         dynamic.append(vtk.GeometryRepresentation(id=item.id,actor=actor,mapper=item.mapper,
@@ -510,26 +510,31 @@ def scene_children(prefix,mode="exterior",snapshot=None,zoom=1):
             for i,(opacity,mesh) in enumerate(data.items())]
     for item in fixed:
         item.actor={"pickable":False,"scale":[zoom]*3}
+        item.property.update(ambient=.10 if snapshot.get("sky",{}).get("street_on",False) else .32,
+                             diffuse=.28 if snapshot.get("sky",{}).get("street_on",False) else .72)
     return fixed+dynamic
 
 
 def scene_patch(prefix,mode,snapshot,controls_changed=True,zoom=1):
-    patch=Patch(); start=len(batches(mode))
+    patch=Patch(); start=len(batches(mode,prefix=="grid"))
     if controls_changed:
         for i in range(start):
             patch[i]["props"]["actor"]["scale"]=[zoom]*3
+            night=snapshot.get("sky",{}).get("street_on",False)
+            patch[i]["props"]["property"]["ambient"]=.10 if night else .32
+            patch[i]["props"]["property"]["diffuse"]=.28 if night else .72
     for i,(actor,properties) in enumerate(dynamic_values(snapshot,zoom)):
-        if i<30 and not controls_changed:
+        if i not in (30,31) and not controls_changed:
             continue
         patch[start+i]["props"]["actor"]=actor
         for key,value in properties.items():
             patch[start+i]["props"]["property"][key]=value
-    patch[start+31]["props"]["children"][0]["props"]["points"]=flow_points(snapshot)
+    patch[start+31]["props"]["children"][0]["props"]["points"]=flow_points(snapshot,prefix=="grid")
     return patch
 
 
 def house_view(prefix="home",mode="exterior"):
-    return vtk.View(id=prefix+"-scene",children=scene_children(prefix,mode),
-        pickingModes=["click","hover"],cameraPosition=CAMERAS["orbit"],cameraViewUp=[0,0,1],
+    return vtk.View(id=prefix+"-scene",children=[] if prefix=="grid" else scene_children(prefix,mode),
+        pickingModes=[] if prefix=="grid" else ["click","hover"],cameraPosition=CAMERAS["orbit"],cameraViewUp=[0,0,1],
         background=[.075,.125,.15],cameraParallelProjection=False,
         style={"width":"100%","height":"100%"},className="vtk-house")
