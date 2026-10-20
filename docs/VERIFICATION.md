@@ -6,9 +6,9 @@ Verified on **20 October 2026**. These checks validate implementation and intern
 
 - Isolated local environment: Python 3.13.7, Dash 2.18.2, bundled React 16.14.0, dash-vtk 0.0.9, Plotly 6.3.0, NumPy 2.3.3 and tzdata 2026.5. `pip check`: **no broken requirements**.
 - Windows: **39 passed, 1 skipped**. The skipped check starts Gunicorn and is specific to Linux.
-- Updated Ubuntu/GitHub Actions status is available in [Python checks](https://github.com/BehnamMohseniGharyehsafa/verdant-home-energy/actions). The workflow installs the same requirements and starts the actual Gunicorn production entry point, including `/healthz` and Dash layout routes.
+- Ubuntu/GitHub Actions: **successful** for the updated implementation, commit `633d96f5eb26c9e998aef556f44b267938066dee`. [Verified production-check run](https://github.com/BehnamMohseniGharyehsafa/verdant-home-energy/actions/runs/39434361354). The workflow installs the same requirements and starts the actual Gunicorn production entry point, including `/healthz` and Dash layout routes.
 - Daily and live power conservation, battery losses/capacity/power limits, room allocation, tariff boundaries, bill/carbon arithmetic, cycle-preserving scheduling, matched DR reward, invalid parameters and CSV reconciliation all pass.
-- New checks cover Irish GMT/IST daylight-saving boundaries, clock/playback/manual modes, evolving room thermal state, live EV On/Off power, live overrides excluded from daily projections, inactive-session resets, valid mesh normals/colors/indices, distinct control IDs, small scene patches and zoom transforms.
+- New checks cover Irish GMT/IST daylight-saving boundaries, clock/playback/manual modes, evolving room thermal state, live EV On/Off power, live overrides excluded from daily projections, inactive-session resets, valid mesh normals/colors/indices, distinct control IDs, stable actor order across envelope modes, small scene patches and zoom transforms.
 - Actual Dash HTTP POSTs verify a 3D bulb switches off and restores its remembered dim level on the next click, both consumed pick states clear, EV picks apply live overrides, and architectural surfaces cannot trigger devices.
 
 ## Browser checks
