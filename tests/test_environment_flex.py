@@ -32,6 +32,8 @@ def test_solar_clock_tracks_irish_dst_and_seasons():
     minutes=lambda text:sum(int(v)*factor for v,factor in zip(text.split(":"),(60,1)))
     before=sky_state(local(12,10,24)); after=sky_state(local(12,10,25))
     assert 55 < minutes(before["sunrise"])-minutes(after["sunrise"]) < 65
+    for month,day in [(3,29),(10,25)]:
+        assert sky_state(local(0,month,day))["sunrise"]==sky_state(local(12,month,day))["sunrise"]
     assert sky_state(local(20,6,20))["daylight"]
     assert not sky_state(local(20,12,20))["daylight"]
     with pytest.raises(ValueError):

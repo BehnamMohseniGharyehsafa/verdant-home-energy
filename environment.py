@@ -41,7 +41,10 @@ def sky_state(local, seconds=None):
     argument = ((math.cos(math.radians(90.833)) - math.sin(latitude) * math.sin(dec_noon))
                 / (math.cos(latitude) * math.cos(dec_noon)))
     half_day = math.degrees(math.acos(max(-1, min(1, argument)))) * 4
-    solar_noon = 720 - 4 * LONGITUDE - eq_noon + 60 * offset
+    # Sunrise/sunset occur after Ireland's overnight DST transition. Use the
+    # day's noon offset, not the offset of a pre-transition midnight viewer.
+    event_offset = noon.utcoffset().total_seconds() / 3600
+    solar_noon = 720 - 4 * LONGITUDE - eq_noon + 60 * event_offset
     fmt = lambda m: f"{int(round(m)) // 60 % 24:02d}:{int(round(m)) % 60:02d}"
     daylight = elevation >= -.833
     phase = "day" if elevation >= 6 else ("golden" if daylight else ("twilight" if elevation > -6 else "night"))
