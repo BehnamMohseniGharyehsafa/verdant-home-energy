@@ -93,7 +93,7 @@ CSV export includes 96 intervals with scenario and reference powers, battery sta
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-Checks include interval conservation, battery losses/limits, room reconciliation, a hand-calculated cost/carbon case, tariff boundaries, cycle-preserving optimal tariff starts, DR settlement, invalid input, CSV totals, all page renderers, HTTP routes and a real Dash callback POST.
+Checks include interval conservation, battery losses/limits, room reconciliation, a hand-calculated cost/carbon case, tariff boundaries, cycle-preserving optimal tariff starts, DR settlement, invalid input, CSV totals, all page renderers, HTTP routes and a real Dash callback POST. GitHub Actions also starts the actual Gunicorn production entry point on Linux and checks its HTTP health and layout routes; that platform-specific check is skipped on Windows.
 
 ## Architecture and operational notes
 
