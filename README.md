@@ -6,6 +6,10 @@ A complete, Python-authored Dash application for an examiner-facing smart-home e
 
 **Data and controls are simulated.** The app does not claim to be connected to meters, appliances, electricity markets, a real demand-response program or an AI service. It works without API keys or personal home data.
 
+![Verdant dashboard with the furnished interactive house](docs/images/overview.jpg)
+
+Documentation: [examiner walkthrough](EXAMINER_GUIDE.md) · [architecture](docs/ARCHITECTURE.md) · [CSV data dictionary](docs/DATA_DICTIONARY.md) · [verification record](docs/VERIFICATION.md) · [contributing](CONTRIBUTING.md) · [security scope](SECURITY.md).
+
 ## Run locally
 
 Python **3.13.7** is the pinned deployment runtime. Python 3.11–3.13 should support the source, but only the pinned runtime has been checked here. A WebGL-capable modern desktop browser is needed for the 3D home.
