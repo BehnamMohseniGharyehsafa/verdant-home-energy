@@ -387,6 +387,12 @@ def layout(today):
         html.Main([
             html.Header([
                 html.Div([html.Span("Workspace", className="subtle"), html.Span("/", className="breadcrumb-divider"), html.Strong("Overview", id="page-title")], className="breadcrumb"),
+                html.Div([
+                    html.Strong("Developer: Behnam Mohseni Gharyehsafa", className="developer-name"),
+                    html.Span("PhD in Electronic Engineering", className="developer-qualification"),
+                    html.A("Mohseni.Gharyehsafa.Behnam@gmail.com",
+                           href="mailto:Mohseni.Gharyehsafa.Behnam@gmail.com", className="developer-email"),
+                ], className="developer-credit", **{"aria-label": "Developer information"}),
                 html.Div([html.Span([html.Span(className="status-dot"), "SIMULATION"], className="header-status"),
                           html.Div([html.Img(id="analog-clock",alt="Irish local clock",className="analog-clock"),
                               html.Div([html.Strong(id="irish-clock"),html.Small(id="irish-date")])],className="irish-clock"),

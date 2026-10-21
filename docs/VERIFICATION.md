@@ -45,3 +45,7 @@ Verified on **20 October 2026**. These checks validate implementation and intern
 ## Publication boundary
 
 The source project is published to GitHub. Render's account session was signed out during preparation. **A public Render dashboard deployment is not yet verified**, and the local preview must not be presented as an examiner-accessible internet URL. Use the repository's Deploy to Render link after signing in, then verify the actual assigned HTTPS URL in a separate browser session.
+
+## Developer header update · 21 October 2026
+
+The shared top header now displays the supplied developer name, qualification and email, centered above every dashboard view. The email is a `mailto:` link. Desktop (1440 px), laptop breakpoint (1281 px) and phone (390 px) layouts were inspected; the phone header puts the developer details above the navigation/clock row. The existing HTTP/layout smoke check passed. [Desktop evidence](images/developer-header.jpg) · [Phone evidence](images/developer-header-mobile.jpg).
