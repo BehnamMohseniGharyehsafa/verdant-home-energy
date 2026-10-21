@@ -63,6 +63,16 @@ def inspect():
         response = session.get(f"https://api.github.com/repos/{repo}/commits/{ref}", timeout=30)
         print(json.dumps({"action": repo, "ref": ref, "http": response.status_code,
                           "sha": response.json().get("sha")}))
+    alerts = session.get(base + "/dependabot/alerts", params={"state": "open", "per_page": 100}, timeout=30)
+    if alerts.ok:
+        print(json.dumps({"open_dependency_alerts": [{"package": item["dependency"]["package"]["name"],
+            "advisory": item["security_advisory"]["ghsa_id"], "severity": item["security_advisory"]["severity"],
+            "affected": item["security_vulnerability"]["vulnerable_version_range"],
+            "fix": item["security_vulnerability"]["first_patched_version"], "manifest": item["dependency"]["manifest_path"]}
+            for item in alerts.json()]}))
+    secrets = session.get(base + "/secret-scanning/alerts", params={"state": "open", "per_page": 100}, timeout=30)
+    print(json.dumps({"secret_scan_http": secrets.status_code,
+                      "open_secret_alerts": len(secrets.json()) if secrets.ok else None}))
 
 
 if __name__ == "__main__":
