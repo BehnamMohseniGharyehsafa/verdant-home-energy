@@ -104,3 +104,27 @@ def test_budget_refills_without_unbounded_client_tracking(monkeypatch):
     assert budget.take() and budget.take() and not budget.take()
     clock[0] += 1
     assert budget.take() and not budget.take()
+
+
+def test_browser_expanded_pattern_controls_and_reject_unknown_rooms():
+    from energy import ROOMS, DEVICES
+    key = next(key for key in app.callback_map if "control-feedback.children" in key)
+    metadata = app.callback_map[key]
+    room_ids = [{"type": "brightness", "room": room} for room in ROOMS]
+    outputs = [[{"id": item, "property": "value"} for item in room_ids]] + [
+        {"id": item.component_id, "property": item.component_property} for item in metadata["output"][1:]]
+    inputs = [{**spec, "value": value} for spec, value in zip(metadata["inputs"], ["Home", None, None])]
+    inputs += [[{"id": {"type": "room-switch", "room": room}, "property": "n_clicks", "value": 1 if room == "living" else 0} for room in ROOMS],
+               [{"id": {"type": "live-device", "device": device}, "property": "n_clicks", "value": 0} for device in DEVICES],
+               {**metadata["inputs"][-1], "value": 0}]
+    states = [[{"id": room, "property": "id", "value": room} for room in room_ids],
+              [{"id": room, "property": "value", "value": 65} for room in room_ids],
+              {"id": "device-overrides", "property": "data", "value": {}},
+              {"id": "live-state", "property": "data", "value": step(DEFAULT)}]
+    payload = {"output": key, "outputs": outputs, "inputs": inputs, "state": states,
+               "changedPropIds": ['{"room":"living","type":"room-switch"}.n_clicks']}
+    response = server.test_client().post("/_dash-update-component", json=payload)
+    assert response.status_code == 200
+    assert response.get_json()["response"]['{"room":"living","type":"brightness"}']["value"] == 0
+    payload["inputs"][3][0]["id"]["room"] = "unknown"
+    assert server.test_client().post("/_dash-update-component", json=payload).status_code == 400

@@ -181,6 +181,18 @@ def install(app):
             if not isinstance(values, list) or len(values) != len(metadata[group]):
                 return False
             for item, spec in zip(values, metadata[group]):
+                # Dash's browser expands ALL dependencies into a nested list
+                # of concrete component records. Pure HTTP clients can also
+                # use the equivalent wildcard record with an array value.
+                if isinstance(item, list) and spec["id"].startswith("{"):
+                    members = pattern_members(spec["id"])
+                    if len(item) != len(members) or any(not isinstance(child, dict)
+                            or child.get("id") != member or child.get("property") != spec["property"]
+                            for child, member in zip(item, members)):
+                        return False
+                    if not valid_value(spec["id"], spec["property"], [child.get("value") for child in item]):
+                        return False
+                    continue
                 if (not isinstance(item, dict) or item.get("id") != spec["id"] or item.get("property") != spec["property"]
                         or not valid_value(spec["id"], spec["property"], item.get("value"))):
                     return False
