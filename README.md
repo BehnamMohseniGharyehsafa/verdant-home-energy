@@ -14,7 +14,7 @@ A complete, Python-authored Dash application for an examiner-facing smart-home e
 
 Documentation: [examiner walkthrough](EXAMINER_GUIDE.md) · [architecture](docs/ARCHITECTURE.md) · [CSV data dictionary](docs/DATA_DICTIONARY.md) · [verification record](docs/VERIFICATION.md) · [contributing](CONTRIBUTING.md) · [security scope](SECURITY.md).
 
-The interface is now branded **Smart**. The existing `verdant-home-energy` repository and Render service slug are retained for deployment compatibility.
+The interface is branded **Smart**. The source repository remains `verdant-home-energy`; the Render Blueprint requests the service name `behnamproject-smarthome`.
 
 ## Run locally
 
@@ -54,7 +54,7 @@ The included `render.yaml` provisions a **Python Web Service**, with Gunicorn an
 
 1. Use [this GitHub repository](https://github.com/BehnamMohseniGharyehsafa/verdant-home-energy). The project source has `app.py`, `requirements.txt`, `render.yaml` and `assets/` at its root. Alternatively, upload the prepared release ZIP's extracted contents to your own repository. Do **not** upload `.venv/`, `.git/`, caches, `.env` or the ZIP itself as the app source.
 2. Sign in at [Render](https://dashboard.render.com/). Select **New → Blueprint**, connect your GitHub account and select that repository. Render reads `render.yaml`.
-3. Review the service and the **Free** instance setting, then deploy. If `verdant-home-energy` is unavailable, choose a unique service name.
+3. Review the service name **`behnamproject-smarthome`**, branch **`main`**, region **Frankfurt** and the **Free** instance setting, then deploy. The requested public address is `https://behnamproject-smarthome.onrender.com/`. Render must confirm the address is available and assign it before it can be shared as a working dashboard. If a service already exists, update that service rather than creating a duplicate.
 4. Wait for the deployment to report **Live**. Open the HTTPS URL Render actually assigns. Do not invent the hostname from the service name.
 5. Open that URL in an incognito window. Check that the overview loads, the 3D home renders, controls update the graphs, and Export CSV downloads. The examiner should not need your Render account.
 6. Send the verified **HTTPS Render URL** to your examiner. This URL does not depend on your local terminal remaining open.
@@ -63,6 +63,9 @@ If using **New → Web Service** instead of a Blueprint, select the repository a
 
 | Setting | Value |
 |---|---|
+| Name | `behnamproject-smarthome` |
+| Branch | `main` |
+| Region | Frankfurt |
 | Runtime | Python |
 | Build command | `pip install -r requirements.txt` |
 | Start command | `gunicorn app:server --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 --access-logfile -` |
@@ -70,7 +73,7 @@ If using **New → Web Service** instead of a Blueprint, select the repository a
 | `PYTHON_VERSION` | `3.13.7` |
 | `DEMO_DATE` | `2026-10-20` |
 
-Render's free web services can spin down after 15 minutes of inactivity, and waking can take about a minute. Free-tier limits can change; check [Render's current free-service documentation](https://render.com/docs/free). Open the app ahead of an assessment. Choose a paid instance only if you decide an always-running service is needed.
+Render's free web services can spin down after 15 minutes of inactivity, and waking can take about a minute. Free-tier limits can change; check [Render's current free-service documentation](https://render.com/docs/free). Open the app ahead of an assessment. An always-running instance requires a paid compute plan, which must be selected and approved in Render; the included Blueprint uses Free. Use the HTTPS address when sharing; Render redirects HTTP requests to HTTPS.
 
 **Publication status:** the source repository and deployment configuration are prepared. A permanent public dashboard URL is only confirmed once the app is deployed in your Render account. The GitHub project link is a source-code link; the local preview is not a public deployment.
 

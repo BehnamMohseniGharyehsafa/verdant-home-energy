@@ -46,6 +46,8 @@ Verified on **20 October 2026**. These checks validate implementation and intern
 
 The source project is published to GitHub. Render's account session was signed out during preparation. **A public Render dashboard deployment is not yet verified**, and the local preview must not be presented as an examiner-accessible internet URL. Use the repository's Deploy to Render link after signing in, then verify the actual assigned HTTPS URL in a separate browser session.
 
+On **21 October 2026**, the Blueprint was updated to request `behnamproject-smarthome` on branch `main` in Frankfurt, using the Free compute plan. The requested `/healthz` address returned HTTP 404 and Render required account sign-in; this is a deployment target, not a confirmed live link. The local full suite passed **47 tests, with 1 Linux-only Gunicorn check skipped on Windows**. GitHub's Linux checks for the preceding application commit `98f50c9989a5240764ebfc7b5483aa3a6f5b7232` also passed ([run](https://github.com/BehnamMohseniGharyehsafa/verdant-home-energy/actions/runs/39632004707)).
+
 ## Developer header update · 21 October 2026
 
 The shared top header now displays the supplied developer name, qualification and email, centered above every dashboard view. The email is a `mailto:` link. Desktop (1440 px), laptop breakpoint (1281 px) and phone (390 px) layouts were inspected; the phone header puts the developer details above the navigation/clock row. The existing HTTP/layout smoke check passed. [Desktop evidence](images/developer-header.jpg) · [Phone evidence](images/developer-header-mobile.jpg).
