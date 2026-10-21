@@ -1,4 +1,4 @@
-# Smart — examiner demonstration
+# Smart: examiner demonstration
 
 This project is a **Python Smart Home Energy Management demonstrator**. All data and controls are simulated; calculations and assumptions are inspectable. No electricity-provider, meter or physical-device connection is claimed.
 
