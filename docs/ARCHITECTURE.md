@@ -49,6 +49,8 @@ flowchart TD
 
 `evaluate()` caches deterministic results by sanitized scenario and synthetic-day offset. A bounded cache improves chart updates. Callbacks treat cached arrays as read-only. Each visitor's controls are held in a memory-backed `dcc.Store`; there is no shared mutable household controller or persistence layer.
 
+The initial component tree is fixed, so Dash does not embed a second 11 MB validation layout in the opening HTML. Callback validation stays enabled; visitor state still belongs to each browser tab. Home/Devices geometry is sent in the initial layout, and the grid geometry loads on first use. Navigation reuses mounted meshes and sends small patches unless the envelope mode changes. While a scene callback is pending, Dash pauses the simulation interval to prevent overlapping geometry requests on a small hosting instance; the separate Irish header clock continues running.
+
 ## Live simulation and direct controls
 
 `runtime.step()` samples the daily outdoor/PV/schedule profiles at the model time, applies live appliance overrides, computes thermostat feedback, dispatches the battery, and advances an area-based room RC heat balance. It returns instantaneous kW, room temperatures, room demand, battery kWh, rolling samples and session energy/cost/carbon. The same power balance and battery limits apply to live and daily calculations. Live numerical integration is approximate; the daily projection remains a separate schedule-based calculation.

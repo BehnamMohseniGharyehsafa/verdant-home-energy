@@ -375,13 +375,17 @@ def advance_simulation(_,raw,mode,manual_slot,overrides,previous,current_index):
               Input("live-state","data"),Input("home-envelope","value"),Input("devices-envelope","value"),
               Input("grid-envelope","value"),Input("navigation","value"),
               Input("home-zoom","data"),Input("devices-zoom","data"),Input("grid-zoom","data"),
-              State("scene-memory","data"),State("scenario","data"))
+              State("scene-memory","data"),State("scenario","data"),
+              running=[(Output("simulation-tick","disabled"), True, False)])
 def render_scenes(snapshot,home_mode,device_mode,grid_mode,page,home_zoom,device_zoom,grid_zoom,memory,raw):
     snapshot=snapshot or {}
     memory=dict(memory or {})
     values=[]
     for prefix,mode,visible,zoom_data in [("home",home_mode,page=="overview",home_zoom),
             ("devices",device_mode,page=="devices",device_zoom),("grid",grid_mode,page=="flexibility",grid_zoom)]:
+        if not visible:
+            values.extend([no_update,no_update,no_update])
+            continue
         current=network_snapshot(raw,snapshot) if prefix=="grid" else snapshot
         mode=mode if mode in ("exterior","interior","xray") else "exterior"
         zoom_data=zoom_data or {}
@@ -389,14 +393,13 @@ def render_scenes(snapshot,home_mode,device_mode,grid_mode,page,home_zoom,device
         signature=json.dumps([current.get("lighting_levels",{}),
             {key:float(value)>.001 for key,value in current.get("appliances",{}).items()},
             current.get("sky",{}).get("street_on",False),current.get("dr_active",False),current.get("dr_dim",50),zoom],sort_keys=True)
-        if not visible:
-            values.extend([no_update,no_update,no_update])
-        else:
-            full=ctx.triggered_id in (None,"navigation",prefix+"-envelope") or memory.get(prefix,{}).get("mode")!=mode
-            changed=memory.get(prefix,{}).get("signature")!=signature
-            reset=datetime.now(timezone.utc).timestamp() if (ctx.triggered_id==prefix+"-zoom" and zoom_data.get("action")=="reset") or (prefix=="grid" and prefix not in memory) else no_update
-            values.extend([scene_children(prefix,mode,current,zoom) if full else scene_patch(prefix,mode,current,changed,zoom),current.get("stamp",0),reset])
-            memory[prefix]={"mode":mode,"signature":signature}
+        # Navigation keeps mounted VTK actors. Resending megabytes of static
+        # meshes on every visit can overload a small instance; patch them instead.
+        full=memory.get(prefix,{}).get("mode")!=mode
+        changed=memory.get(prefix,{}).get("signature")!=signature
+        reset=datetime.now(timezone.utc).timestamp() if (ctx.triggered_id==prefix+"-zoom" and zoom_data.get("action")=="reset") or (prefix=="grid" and prefix not in memory) else no_update
+        values.extend([scene_children(prefix,mode,current,zoom) if full else scene_patch(prefix,mode,current,changed,zoom),current.get("stamp",0),reset])
+        memory[prefix]={"mode":mode,"signature":signature}
     return values+[memory]
 
 

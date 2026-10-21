@@ -379,7 +379,9 @@ def layout(today):
         dcc.Store(id="scenario", data=DEFAULT, storage_type="memory"),
         dcc.Store(id="live-state",data={},storage_type="memory"),
         dcc.Store(id="device-overrides",data={},storage_type="memory"),
-        dcc.Store(id="scene-memory",data={},storage_type="memory"),
+        # Home and Devices already receive their meshes in the initial layout.
+        dcc.Store(id="scene-memory",data={"home":{"mode":"exterior"},
+                  "devices":{"mode":"interior"}},storage_type="memory"),
         dcc.Store(id="effective-index",data=57),
         dcc.Interval(id="irish-clock-tick",interval=1000,n_intervals=0),
         dcc.Interval(id="simulation-tick",interval=2000,n_intervals=0),
