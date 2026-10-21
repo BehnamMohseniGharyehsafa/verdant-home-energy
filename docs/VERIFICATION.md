@@ -1,12 +1,12 @@
 # Verification record
 
-Verified on **20 October 2026**. These checks validate implementation and internal accounting, not the physical accuracy of a real house or a future hosting account's service availability.
+Verified on **20–21 October 2026**, with public deployment checks on **21 October**. These checks validate implementation and internal accounting, not the physical accuracy of a real house or a guarantee of future hosting availability.
 
 ## Automated checks
 
 - Isolated local environment: Python 3.13.7, Dash 2.18.2, bundled React 16.14.0, dash-vtk 0.0.9, Plotly 6.3.0, NumPy 2.3.3 and tzdata 2026.5. `pip check`: **no broken requirements**.
-- Windows: **47 passed, 1 skipped**. The skipped check starts Gunicorn and is specific to Linux.
-- Linux production checks: **successful** for commit `74515dd5a9c576ba2c83ffb03a97196a751d6132`. [Verified run](https://github.com/BehnamMohseniGharyehsafa/verdant-home-energy/actions/runs/39447732103). The workflow installs the same requirements and starts the actual Gunicorn production entry point, including `/healthz` and Dash layout routes.
+- Windows: **48 passed, 1 skipped** after the deployment reliability changes. The skipped check starts Gunicorn and is specific to Linux.
+- Linux production checks: **successful** for deployed application commit `c7c4ea346cdefbb50ca87c9178addd5bbdc5ab8a`. [Verified run](https://github.com/BehnamMohseniGharyehsafa/verdant-home-energy/actions/runs/39636564003). The workflow installs the same requirements and starts the actual Gunicorn production entry point, including `/healthz` and Dash layout routes.
 - Daily and live power conservation, battery losses/capacity/power limits, room allocation, tariff boundaries, bill/carbon arithmetic, cycle-preserving scheduling, matched DR reward, invalid parameters and CSV reconciliation all pass.
 - New checks cover Irish GMT/IST daylight-saving boundaries, clock/playback/manual modes, evolving room thermal state, live EV On/Off power, live overrides excluded from daily projections, inactive-session resets, valid mesh normals/colors/indices, distinct control IDs, stable actor order across envelope modes, small scene patches and zoom transforms.
 - Actual Dash HTTP POSTs verify a 3D bulb switches off and restores its remembered dim level on the next click, both consumed pick states clear, EV picks apply live overrides, and architectural surfaces cannot trigger devices.
@@ -42,11 +42,21 @@ Verified on **20 October 2026**. These checks validate implementation and intern
 - [Energy analytics](images/analytics.jpg)
 - [Phone lighting controls](images/mobile.jpg)
 
-## Publication boundary
+## Public deployment verified · 21 October 2026
 
-The source project is published to GitHub. Render's account session was signed out during preparation. **A public Render dashboard deployment is not yet verified**, and the local preview must not be presented as an examiner-accessible internet URL. Use the repository's Deploy to Render link after signing in, then verify the actual assigned HTTPS URL in a separate browser session.
+The public simulation is [https://behnamproject-smarthome.onrender.com/](https://behnamproject-smarthome.onrender.com/). Render service `srv-dbcebdvf3r2c739pjh2g` runs the Python application on the **Free** compute plan in **Frankfurt**. Application commit `c7c4ea346cdefbb50ca87c9178addd5bbdc5ab8a` was deployed successfully. Verification used a separate browser session without a Render login and unauthenticated HTTP requests.
 
-On **21 October 2026**, the Blueprint was updated to request `behnamproject-smarthome` on branch `main` in Frankfurt, using the Free compute plan. The requested `/healthz` address returned HTTP 404 and Render required account sign-in; this is a deployment target, not a confirmed live link. The local full suite passed **47 tests, with 1 Linux-only Gunicorn check skipped on Windows**. GitHub's Linux checks for the preceding application commit `98f50c9989a5240764ebfc7b5483aa3a6f5b7232` also passed ([run](https://github.com/BehnamMohseniGharyehsafa/verdant-home-energy/actions/runs/39632004707)).
+- `/`, `/healthz`, `/_dash-layout`, `/_dash-dependencies` and the experience stylesheet returned HTTP 200. The health response identifies the Smart simulation.
+- The opening HTML is about **4.8 KB**, reduced from an unnecessary 11 MB validation copy. Callback validation remains enabled. An HTTP regression check ensures repeat navigation sends small scene patches instead of full meshes.
+- The Irish clock and model readings advance; the furnished house and grid scene render. At the 18:00 DR preview, enabling participation changes the matched import comparison and reward (in the checked scenario, 1.74 kW to 0.00 kW at the selected time and 0.85 kWh event reduction).
+- Public light picks switch off and restore the remembered 65% level; EV picks apply an On override. The browser displayed five lit rooms after one room was switched off and six lit rooms in a fresh session. Night preview displays the moon and automatic street lights; EV control displays 3600 W when manually on.
+- The public CSV callback returns **96 data rows** with the expected energy, tariff, cost, carbon and DR columns. A browser CSV download was also checked during deployment.
+- Three simultaneous opening requests returned HTTP 200 in approximately 0.9–1.02 seconds in the checked run. Six health requests during the response exercise all succeeded (maximum observed latency 2.5 seconds). This is a small smoke check, not a capacity benchmark or uptime guarantee.
+- An opaque browser-console entry labelled `Object` appeared during startup. No matching Render application `ERROR` records were found for the inspected hour; the tested controls and views completed successfully. This record does not claim a completely silent browser console.
+
+Render Free can sleep after 15 minutes without traffic, takes about a minute to wake and can restart. Initial 3D assets also require download/render time. An always-running service requires a paid compute plan. Visitors need a modern WebGL-capable browser. No uptime guarantee or paid upgrade was purchased.
+
+[Deployed overview](images/render-live-overview.png) · [Deployed night lighting](images/render-live-night.png).
 
 ## Developer header update · 21 October 2026
 

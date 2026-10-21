@@ -2,7 +2,9 @@
 
 A complete, Python-authored Dash application for an examiner-facing smart-home energy demonstration. The interface, Plotly analytics, VTK WebGL house, callbacks, scheduling and energy calculations are authored in Python. Local CSS supplies the visual theme; there is no handwritten application JavaScript or separate frontend build.
 
-[Source repository](https://github.com/BehnamMohseniGharyehsafa/verdant-home-energy) · [Deploy to Render](https://render.com/deploy?repo=https://github.com/BehnamMohseniGharyehsafa/verdant-home-energy)
+[Live dashboard](https://behnamproject-smarthome.onrender.com/) · [Source repository](https://github.com/BehnamMohseniGharyehsafa/verdant-home-energy) · [Deploy another instance](https://render.com/deploy?repo=https://github.com/BehnamMohseniGharyehsafa/verdant-home-energy)
+
+**Share the live dashboard directly:** visitors need no Render/GitHub account or Python installation, and your own computer can be turned off. The Free Render instance may take about a minute to wake after inactivity; allow additional time for the initial 3D assets to load. A modern browser with WebGL support is needed for the house.
 
 **Data and controls are simulated.** The app does not claim to be connected to meters, appliances, electricity markets, a real demand-response program or an AI service. It works without API keys or personal home data.
 
@@ -75,7 +77,7 @@ If using **New → Web Service** instead of a Blueprint, select the repository a
 
 Render's free web services can spin down after 15 minutes of inactivity, and waking can take about a minute. Free-tier limits can change; check [Render's current free-service documentation](https://render.com/docs/free). Open the app ahead of an assessment. An always-running instance requires a paid compute plan, which must be selected and approved in Render; the included Blueprint uses Free. Use the HTTPS address when sharing; Render redirects HTTP requests to HTTPS.
 
-**Publication status:** the source repository and deployment configuration are prepared. A permanent public dashboard URL is only confirmed once the app is deployed in your Render account. The GitHub project link is a source-code link; the local preview is not a public deployment.
+**Publication status:** [https://behnamproject-smarthome.onrender.com/](https://behnamproject-smarthome.onrender.com/) was deployed and publicly verified on **21 October 2026**. The public simulation, demand-response event, lighting/EV controls, simultaneous opening requests and 96-row CSV export were checked without a Render login. See the [verification record](docs/VERIFICATION.md) for the checked commit, evidence and hosting limits.
 
 ## What is included
 

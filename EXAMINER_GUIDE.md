@@ -30,4 +30,4 @@ The geometry, network and RC dynamics are illustrative, not a surveyed house, wi
 
 ## Shareable link
 
-Send the actual HTTPS URL from the deployed Render Web Service after verifying it in an incognito browser. `127.0.0.1`/`localhost` are local preview addresses and must not be submitted as a public examiner link. See `README.md` for the full deployment procedure.
+Open or share [https://behnamproject-smarthome.onrender.com/](https://behnamproject-smarthome.onrender.com/). The public deployment was verified on **21 October 2026**. Visitors do not need a Render/GitHub login or Python installation; the developer's computer does not need to stay running. On the Free plan, an inactive service can take about a minute to wake, followed by the initial 3D asset download. Open the dashboard ahead of the assessment and use a modern WebGL-capable browser. A paid compute plan is needed for always-running hosting. See `README.md` for deployment and `docs/VERIFICATION.md` for the validation scope.
