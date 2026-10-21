@@ -248,8 +248,8 @@ def render_flex(raw):
     rows=[]
     for row in result["rows"]:
         status="Disabled" if not row["enabled"] else ("Shifted" if row["shifted"] else ("Unchanged" if row["flexible"] else "Fixed window"))
-        rows.append(html.Tr([html.Td(row["name"]),html.Td(row["before"] if row["enabled"] else "—"),
-            html.Td(row["after"] if row["enabled"] else "—"),html.Td(f"{row['energy']:.2f} kWh"),
+        rows.append(html.Tr([html.Td(row["name"]),html.Td(row["before"] if row["enabled"] else "N/A"),
+            html.Td(row["after"] if row["enabled"] else "N/A"),html.Td(f"{row['energy']:.2f} kWh"),
             html.Td(f"{row['event_delta']:+.2f} kWh"),html.Td(pill(status,"green" if row["shifted"] else "muted"))]))
     table=html.Table([html.Thead(html.Tr([html.Th(text) for text in
         ("Appliance","Without response","Your settings","Cycle energy","Event load avoided","Action")])),html.Tbody(rows)],className="ledger")
