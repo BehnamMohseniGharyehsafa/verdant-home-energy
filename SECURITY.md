@@ -18,7 +18,7 @@ For a security issue, use [GitHub private vulnerability reporting](https://githu
 
 ## Repository and maintenance
 
-Secret scanning and secret push protection are enabled. Dependabot vulnerability alerts, security update PRs and private reporting are enabled. Dependency updates require review and tests; automatic merging is not enabled. CI audits Python requirements and runs the model, HTTP and Linux Gunicorn checks. Its token is read-only, checkout does not persist credentials, and third-party Actions references are pinned to commit SHAs. Weekly Dependabot updates cover pip packages and GitHub Actions.
+Secret scanning and secret push protection are enabled. Dependabot vulnerability alerts, security update PRs and private reporting are enabled. Dependency updates require review and tests; automatic merging is not enabled. CI audits production and development Python requirements and runs the model, HTTP and Linux Gunicorn checks. Its token is read-only, checkout does not persist credentials, and Actions references are pinned to commit SHAs. Repository policy permits GitHub-owned Actions and requires SHA pinning. Weekly Dependabot updates cover pip packages and GitHub Actions. Pytest 9.0.3 fixes the development dependency advisory found during the repository audit.
 
 The main branch protection requires a pull request and a successful, current GitHub Actions `test` check, applies to administrators, blocks force pushes/deletion and requires resolved conversations and linear history. No second person's approval is required because this is a sole-maintainer project. Confirm the active repository setting with `python scripts/github_security.py`; protections are account-side settings, not automatically applied to forks.
 

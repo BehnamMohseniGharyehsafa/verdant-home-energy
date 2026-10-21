@@ -53,7 +53,7 @@ def main():
     print(json.dumps({"url": repository["html_url"], "clone_url": repository["clone_url"],
                       "private": repository["private"], "default_branch": repository["default_branch"]}))
     if args.status:
-        response = session.get(url + "/actions/runs", params={"per_page": 2}, timeout=30)
+        response = session.get(url + "/actions/workflows/tests.yml/runs", params={"per_page": 2, "branch": "main"}, timeout=30)
         if response.status_code == 200:
             print(json.dumps({"checks": [{"name": run["name"], "status": run["status"],
                 "conclusion": run["conclusion"], "url": run["html_url"], "sha": run["head_sha"]}

@@ -15,6 +15,8 @@ def harden(protect_main=False):
         ("PUT", "/automated-security-fixes", None),
         ("PUT", "/private-vulnerability-reporting", None),
         ("PUT", "/actions/permissions/workflow", {"default_workflow_permissions": "read", "can_approve_pull_request_reviews": False}),
+        ("PUT", "/actions/permissions", {"enabled": True, "allowed_actions": "selected", "sha_pinning_required": True}),
+        ("PUT", "/actions/permissions/selected-actions", {"github_owned_allowed": True, "verified_allowed": False, "patterns_allowed": []}),
     ]
     if protect_main:
         branch = session.get(base + "/branches/main", timeout=30)
@@ -22,12 +24,12 @@ def harden(protect_main=False):
         sha = branch.json()["commit"]["sha"]
         checks = session.get(base + f"/commits/{sha}/check-runs", timeout=30)
         checks.raise_for_status()
-        passed = any(item["name"] == "test" and item["conclusion"] == "success"
-                     and item.get("app", {}).get("slug") == "github-actions" for item in checks.json()["check_runs"])
-        if not passed:
+        passed = next((item for item in checks.json()["check_runs"] if item["name"] == "test" and item["conclusion"] == "success"
+                       and item.get("app", {}).get("slug") == "github-actions"), None)
+        if passed is None:
             sys.exit("Refusing branch protection until the current main commit passes the test check.")
         operations.append(("PUT", "/branches/main/protection", {
-            "required_status_checks": {"strict": True, "checks": [{"context": "test", "app_id": 15368}]},
+            "required_status_checks": {"strict": True, "checks": [{"context": "test", "app_id": passed["app"]["id"]}]},
             "enforce_admins": True,
             "required_pull_request_reviews": {"dismiss_stale_reviews": True, "require_code_owner_reviews": False,
                                                "required_approving_review_count": 0, "require_last_push_approval": False},
