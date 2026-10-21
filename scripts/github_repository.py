@@ -14,11 +14,8 @@ OWNER = "BehnamMohseniGharyehsafa"
 REPOSITORY = "verdant-home-energy"
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--create", action="store_true", help="Create the public demo-source repository if absent")
-    parser.add_argument("--status", action="store_true", help="Read repository and latest workflow status")
-    args = parser.parse_args()
+def github_session():
+    """Reuse the owner's GCM login without exposing credentials to callers."""
     environment = dict(os.environ, GCM_INTERACTIVE="never", GIT_TERMINAL_PROMPT="0")
     process = subprocess.run(["git", "credential", "fill"],
         input=f"protocol=https\nhost=github.com\nusername={OWNER}\n\n",
@@ -35,6 +32,15 @@ def main():
     identity = session.get("https://api.github.com/user", timeout=30)
     if identity.status_code != 200 or identity.json().get("login", "").lower() != OWNER.lower():
         sys.exit("The available GitHub credential does not authenticate the intended repository owner.")
+    return session
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--create", action="store_true", help="Create the public demo-source repository if absent")
+    parser.add_argument("--status", action="store_true", help="Read repository and latest workflow status")
+    args = parser.parse_args()
+    session = github_session()
     url = f"https://api.github.com/repos/{OWNER}/{REPOSITORY}"
     result = session.get(url, timeout=30)
     if result.status_code == 404 and args.create:

@@ -44,7 +44,8 @@ app.layout = layout(DEMO_DATE)
 
 @server.get("/healthz")
 def health():
-    return {"status": "ok", "mode": "simulation", "application": "smart"}, 200
+    return {"status": "ok", "mode": "simulation", "application": "smart",
+            "release": "2026.10.21-security.1"}, 200
 
 
 @app.callback([Output("page-" + page, "className") for page in PAGES] + [Output("page-title", "children")],
@@ -545,6 +546,10 @@ def register_sky_callback(prefix):
 
 for _sky_prefix in ("home","devices","grid"):
     register_sky_callback(_sky_prefix)
+
+
+from security import install as install_security
+install_security(app)
 
 
 if __name__ == "__main__":

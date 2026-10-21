@@ -144,7 +144,19 @@ tests/             Accounting and HTTP/callback tests
 
 Scenario controls and live simulation state live in browser memory and reset on refresh; visitors do not share a mutable global home. Server-side cached daily results and architectural meshes are deterministic and bounded. The browser receives small patches for moving flow particles, lighting and battery fill instead of rebuilding the house every tick; the camera persists during updates. There is no database, persistent household data, authentication, API key or external API dependency. The production start command uses one Gunicorn worker with four threads. Dash/Plotly/VTK supply their browser runtimes as Python framework dependencies.
 
-**Renderer compatibility:** `dash-vtk==0.0.9` is used with `dash==2.18.2` and Dash's bundled React **16.14.0**. The newer Dash/React combination was checked and did not render reliably; keep this explicit compatibility pin until a replacement has been browser-tested. Geometry is generated with NumPy and Python; the server does not import native VTK rendering or require a GPU/display server. A browser with WebGL and hardware acceleration is recommended.
+**Renderer compatibility:** `dash-vtk==0.0.9` is used with `dash==3.4.0` and explicitly selected React **16.14.0**. The framework update permits patched Flask 3.1.3 and Werkzeug 3.1.9; keep React 16.14.0 selected for this renderer. Geometry is generated with NumPy and Python; the server does not import native VTK rendering or require a GPU/display server. A browser with WebGL and hardware acceleration is recommended.
+
+## Security and checking the shared link
+
+The public demo has bounded callback requests, typed state validation, same-origin controls, security headers, limited expensive work and no physical-device credentials. GitHub uses secret protection, reviewed updates and required CI. See [SECURITY.md](SECURITY.md) for exact safeguards, account-side settings, availability limits and recovery steps. No system is guaranteed unhackable or continuously available.
+
+Before an assessment, open the public link in a fresh browser and run:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/check_site.py
+```
+
+This checks public HTTP routes and a real calculation. It is a point-in-time smoke check, not a persistent uptime monitor or a WebGL test. Use a paid Render compute instance to avoid Free sleeping; no paid upgrade is included or purchased. Enable 2FA/passkeys on both hosting accounts yourself. Subsequent source changes go through a feature branch and a passing pull request.
 
 The 3D model and charts have no added watermark. Plotly's modebar and logo are explicitly disabled, and visible framework credits are omitted from the interface. The Smart name is the application's own identity. Third-party license notices remain in their distributed dependencies.
 

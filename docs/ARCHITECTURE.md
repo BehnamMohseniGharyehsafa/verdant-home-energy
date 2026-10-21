@@ -1,6 +1,6 @@
 # Architecture
 
-Smart uses Dash's Python component tree and callbacks, Plotly analytics, and a Python-generated VTK WebGL house. The browser runtime is supplied by the frameworks; no handwritten JavaScript application is required. Dash 2.18.2 and bundled React 16.14.0 are explicitly selected for dash-vtk 0.0.9 compatibility.
+Smart uses Dash's Python component tree and callbacks, Plotly analytics, and a Python-generated VTK WebGL house. The browser runtime is supplied by the frameworks; no handwritten JavaScript application is required. Dash 3.4.0 and bundled React 16.14.0 are explicitly selected for dash-vtk 0.0.9 compatibility. Flask 3.1.3 and Werkzeug 3.1.9 include the audited security fixes. `security.py` validates HTTP callbacks against the registered component bindings, bounds state/expensive work, restricts routes/origins/hosts and applies browser headers. See [security scope](../SECURITY.md) for the limits of these safeguards.
 
 ```mermaid
 flowchart TD
