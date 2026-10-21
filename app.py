@@ -35,7 +35,11 @@ app = Dash(__name__, title="Smart · Home Energy", update_title=None,
            meta_tags=[{"name": "viewport", "content": "width=device-width, initial-scale=1"},
                       {"name": "description", "content": "An interactive Python smart-home energy management demonstration with a 3D home, device controls, solar, storage and transparent analytics."}])
 server = app.server
-app.layout = lambda: layout(DEMO_DATE)
+# This tree contains only initial values; each visitor's live state stays in
+# browser-memory stores. A callable layout makes Dash embed a second, 11 MB
+# validation copy of the 3D meshes in every HTML response (including HEAD).
+# A fixed tree keeps validation enabled and sends geometry only via the layout.
+app.layout = layout(DEMO_DATE)
 
 
 @server.get("/healthz")

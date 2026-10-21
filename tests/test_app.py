@@ -9,6 +9,8 @@ def test_http_routes_and_callback_registration():
     for path in ["/", "/healthz", "/_dash-layout", "/_dash-dependencies", "/assets/style.css"]:
         response = client.get(path)
         assert response.status_code == 200, path
+        if path == "/":
+            assert len(response.data) < 100_000, "HTML must not duplicate the large 3D layout"
     layout = client.get("/_dash-layout").get_json()
     ids = []
     def walk(node):
