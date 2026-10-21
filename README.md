@@ -1,4 +1,4 @@
-# Smart — Smart Home Energy Management
+# Smart: Smart Home Energy Management
 
 A complete, Python-authored Dash application for an examiner-facing smart-home energy demonstration. The interface, Plotly analytics, VTK WebGL house, callbacks, scheduling and energy calculations are authored in Python. Local CSS supplies the visual theme; there is no handwritten application JavaScript or separate frontend build.
 
